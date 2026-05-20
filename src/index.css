@@ -31,16 +31,18 @@
 }
 
 :root[data-theme='light'] {
-  --color-ink: 250 246 236; /* warm cream page bg */
-  --color-ink-deep: 240 232 213;
-  --color-surface: 255 252 244;
-  --color-surface-2: 247 241 224;
-  --color-cream: 19 16 27; /* near-black for text */
-  --color-cream-muted: 96 87 105;
-  --color-edge: 207 198 175;
-  --color-fast: 167 95 0; /* darker amber for 4.5:1 on cream bg */
-  --color-slow: 95 47 191; /* darker violet */
-  --color-coral: 168 41 76; /* darker red */
+  /* Light palette — every text-on-bg pair clears 4.5:1 and accent
+     borders / dots stay legible without an alpha boost everywhere. */
+  --color-ink: 245 240 224; /* page bg — slightly punchier than pure cream */
+  --color-ink-deep: 226 216 188; /* recessed pill bg */
+  --color-surface: 255 252 244; /* card */
+  --color-surface-2: 236 226 198; /* card header bar */
+  --color-cream: 12 9 18; /* near-black; ~17:1 on bg */
+  --color-cream-muted: 71 62 86; /* ~7.5:1 */
+  --color-edge: 152 138 104; /* strong warm-grey border (was too light) */
+  --color-fast: 138 76 0; /* deep amber — 5.4:1 on bg, visible at /70 alpha */
+  --color-slow: 72 28 161; /* deep violet — 7.6:1 */
+  --color-coral: 154 28 58; /* deep red — 6.4:1 */
   color-scheme: light;
 }
 

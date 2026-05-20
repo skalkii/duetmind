@@ -203,10 +203,10 @@ export function SessionPanel({
 
   return (
     <section
-      className="w-full max-w-lg overflow-hidden rounded-3xl border border-edge/70 bg-surface/70 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)] backdrop-blur"
+      className="w-full max-w-lg overflow-hidden rounded-3xl border border-edge bg-surface shadow-[0_30px_60px_-20px_rgba(0,0,0,0.25)] dark:border-edge/70 dark:bg-surface/70 dark:shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)]"
       aria-label="DuetMind session"
     >
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-edge/60 bg-surface-2/40 px-4 py-3 sm:px-5">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-edge/80 bg-surface-2 px-4 py-3 dark:border-edge/60 dark:bg-surface-2/40 sm:px-5">
         <div className="flex items-center gap-2">
           <span aria-hidden="true" className="relative inline-flex h-2.5 w-4">
             <span
@@ -226,8 +226,8 @@ export function SessionPanel({
           disabled={status === 'starting'}
           className={`whitespace-nowrap rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] transition disabled:opacity-50 sm:px-4 sm:tracking-[0.16em] ${
             live
-              ? 'border border-coral/40 bg-coral/15 text-coral hover:bg-coral/25'
-              : 'border border-fast/40 bg-fast/15 text-fast hover:bg-fast/25'
+              ? 'border border-coral/60 bg-coral/20 text-coral hover:bg-coral/30 dark:border-coral/40 dark:bg-coral/15 dark:hover:bg-coral/25'
+              : 'border border-fast/60 bg-fast/20 text-fast hover:bg-fast/30 dark:border-fast/40 dark:bg-fast/15 dark:hover:bg-fast/25'
           }`}
           {...(error ? { 'aria-describedby': 'session-error' } : {})}
         >
@@ -253,7 +253,7 @@ export function SessionPanel({
           <Badge active={selfSpeaking} label="self" hue="slow" />
           <SlowBrainBadge status={slowStatus} />
           {bargeMs !== null && <BargeBadge ms={bargeMs} />}
-          <span className="whitespace-nowrap rounded-full border border-edge/70 bg-ink-deep/40 px-2 py-1 text-cream-muted sm:px-2.5">
+          <span className="whitespace-nowrap rounded-full border border-edge bg-ink-deep/60 px-2 py-1 text-cream-muted dark:border-edge/70 dark:bg-ink-deep/40 sm:px-2.5">
             tick {tickCount}
           </span>
         </div>
@@ -413,9 +413,10 @@ function Badge({
 }) {
   const live =
     hue === 'fast'
-      ? 'border-fast/40 bg-fast/15 text-fast'
-      : 'border-slow/40 bg-slow/15 text-slow'
-  const idle = 'border-edge/70 bg-ink-deep/40 text-cream-muted'
+      ? 'border-fast/60 bg-fast/20 text-fast dark:border-fast/40 dark:bg-fast/15'
+      : 'border-slow/60 bg-slow/20 text-slow dark:border-slow/40 dark:bg-slow/15'
+  const idle =
+    'border-edge bg-ink-deep/60 text-cream-muted dark:border-edge/70 dark:bg-ink-deep/40'
   return (
     <span
       className={`whitespace-nowrap rounded-full border px-2 py-1 sm:px-2.5 ${active ? live : idle}`}
@@ -429,8 +430,8 @@ function Badge({
 function BargeBadge({ ms }: { ms: number }) {
   const ok = ms < 200
   const palette = ok
-    ? 'border-fast/40 bg-fast/15 text-fast'
-    : 'border-coral/40 bg-coral/15 text-coral'
+    ? 'border-fast/60 bg-fast/20 text-fast dark:border-fast/40 dark:bg-fast/15'
+    : 'border-coral/60 bg-coral/20 text-coral dark:border-coral/40 dark:bg-coral/15'
   return (
     <span
       className={`whitespace-nowrap rounded-full border px-2 py-1 sm:px-2.5 ${palette}`}
@@ -449,10 +450,13 @@ function SlowBrainBadge({ status }: { status: SlowBrainStatus }) {
     error: 'slow · error',
   }
   const palettes: Record<SlowBrainStatus, string> = {
-    idle: 'border-edge/70 bg-ink-deep/40 text-cream-muted',
-    loading: 'border-slow/40 bg-slow/15 text-slow',
-    ready: 'border-slow/50 bg-slow/20 text-slow',
-    error: 'border-coral/40 bg-coral/15 text-coral',
+    idle: 'border-edge bg-ink-deep/60 text-cream-muted dark:border-edge/70 dark:bg-ink-deep/40',
+    loading:
+      'border-slow/60 bg-slow/20 text-slow dark:border-slow/40 dark:bg-slow/15',
+    ready:
+      'border-slow/70 bg-slow/25 text-slow dark:border-slow/50 dark:bg-slow/20',
+    error:
+      'border-coral/60 bg-coral/20 text-coral dark:border-coral/40 dark:bg-coral/15',
   }
   return (
     <span

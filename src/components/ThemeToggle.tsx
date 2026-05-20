@@ -35,7 +35,7 @@ export function ThemeToggle() {
     <div
       role="radiogroup"
       aria-label="Theme"
-      className="inline-flex items-center rounded-full border border-edge/70 bg-ink-deep/40 p-0.5"
+      className="inline-flex items-center rounded-full border border-edge bg-ink-deep/60 p-0.5 dark:border-edge/70 dark:bg-ink-deep/40"
     >
       {options.map((o) => {
         const active = o.value === mode
@@ -50,8 +50,8 @@ export function ThemeToggle() {
             onClick={() => setMode(o.value)}
             className={`h-6 w-6 rounded-full text-[12px] leading-none transition ${
               active
-                ? 'bg-fast/20 text-fast'
-                : 'text-cream-muted hover:text-cream'
+                ? 'bg-fast text-ink shadow-[0_1px_0_rgba(0,0,0,0.15)]'
+                : 'text-cream-muted hover:bg-edge/30 hover:text-cream'
             }`}
           >
             <span aria-hidden="true">{o.icon}</span>

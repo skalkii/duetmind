@@ -36,8 +36,8 @@ export function ConversationView() {
             key={`${m.ts}-${i}`}
             className={`max-w-[88%] rounded-2xl border px-3 py-2.5 text-sm leading-relaxed sm:max-w-[78%] sm:px-4 ${
               m.role === 'user'
-                ? 'self-end border-fast/30 bg-fast/10 text-cream'
-                : 'self-start border-slow/30 bg-slow/10 text-cream'
+                ? 'self-end border-fast/60 bg-fast/15 text-cream dark:border-fast/30 dark:bg-fast/10'
+                : 'self-start border-slow/60 bg-slow/15 text-cream dark:border-slow/30 dark:bg-slow/10'
             }`}
           >
             <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-cream-muted">
@@ -50,7 +50,7 @@ export function ConversationView() {
           </li>
         ))}
         {replyInFlight && slowReplyText && (
-          <li className="max-w-[88%] self-start rounded-2xl border border-slow/30 bg-slow/10 px-3 py-2.5 text-sm leading-relaxed text-cream sm:max-w-[78%] sm:px-4">
+          <li className="max-w-[88%] self-start rounded-2xl border border-slow/60 bg-slow/15 px-3 py-2.5 text-sm leading-relaxed text-cream dark:border-slow/30 dark:bg-slow/10 sm:max-w-[78%] sm:px-4">
             <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-slow">
               assistant · streaming
             </span>

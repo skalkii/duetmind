@@ -58,7 +58,7 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
 
   return (
     <section
-      className="w-full max-w-lg overflow-hidden rounded-2xl border border-edge/60 bg-surface/40"
+      className="w-full max-w-lg overflow-hidden rounded-2xl border border-edge bg-surface dark:border-edge/60 dark:bg-surface/40"
       aria-label="Debug panel"
     >
       <button
@@ -79,7 +79,7 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
       {open && (
         <div
           id="debug-panel-body"
-          className="space-y-4 border-t border-edge/60 px-4 py-4"
+          className="space-y-4 border-t border-edge/80 px-4 py-4 dark:border-edge/60"
         >
           <dl className="grid grid-cols-1 gap-x-4 gap-y-2 font-mono text-[11px] sm:grid-cols-2">
             <Metric label="tick" value={tickCount.toString()} />
@@ -126,14 +126,14 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
             <button
               type="button"
               onClick={resetDebugConfig}
-              className="rounded-md border border-edge/70 bg-ink-deep/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted hover:bg-ink-deep/60"
+              className="rounded-md border border-edge bg-ink-deep/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted hover:bg-ink-deep/80 dark:border-edge/70 dark:bg-ink-deep/40 dark:hover:bg-ink-deep/60"
             >
               reset to defaults
             </button>
             <button
               type="button"
               onClick={downloadTranscript}
-              className="rounded-md border border-fast/30 bg-fast/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-fast hover:bg-fast/20"
+              className="rounded-md border border-fast/60 bg-fast/20 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-fast hover:bg-fast/30 dark:border-fast/30 dark:bg-fast/10 dark:hover:bg-fast/20"
             >
               export transcript
             </button>

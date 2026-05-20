@@ -1,6 +1,6 @@
 export function SiteFooter() {
   return (
-    <footer className="mt-12 border-t border-edge/60 bg-ink-deep/40">
+    <footer className="mt-12 border-t border-edge bg-ink-deep/60 dark:border-edge/60 dark:bg-ink-deep/40">
       <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-3 px-5 py-5 text-center text-[11px] text-cream-muted sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-6 sm:text-left sm:text-xs">
         <p className="font-mono uppercase tracking-[0.12em] sm:tracking-[0.16em]">
           runs offline · no api keys · no telemetry
