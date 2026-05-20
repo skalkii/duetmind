@@ -1,3 +1,13 @@
+/* Self-hosted fonts — no third-party CDN, no SRI gap, true offline.
+   latin-only subsets to keep the CSS small; the project is English-only. */
+@import '@fontsource/instrument-serif/latin-400.css';
+@import '@fontsource/instrument-serif/latin-400-italic.css';
+@import '@fontsource/geist/latin-400.css';
+@import '@fontsource/geist/latin-500.css';
+@import '@fontsource/geist/latin-600.css';
+@import '@fontsource/geist-mono/latin-400.css';
+@import '@fontsource/geist-mono/latin-500.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

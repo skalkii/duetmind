@@ -131,13 +131,10 @@ shorter user turn or a more declarative question.
 5. Start a new session.
 
 **Pass criteria:** Mic + STT + TTS + fast brain + slow brain all work
-without any network requests. Conversation completes end-to-end. The only
-artifact that can't load offline is the Google Fonts CSS — UI falls back to
-system-ui automatically, no broken layout.
-
-**Note:** Google Fonts loads with no SRI. For a stricter offline guarantee
-the fonts could be self-hosted in `public/`; deferred as out-of-scope
-polish.
+without any network requests. Conversation completes end-to-end. Fonts
+are bundled in the JS+CSS payload (`@fontsource/instrument-serif`,
+`@fontsource/geist`, `@fontsource/geist-mono`) so there is no third-party
+CDN involved.
 
 ---
 
