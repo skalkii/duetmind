@@ -40,9 +40,11 @@ export interface FastTickInbound {
   readonly input: TickInput
   /**
    * Optional per-tick config override. The worker is stateless across ticks,
-   * so any live-tuned thresholds (debug panel knobs) ride along.
+   * so any live-tuned thresholds (debug panel knobs, mode toggles) ride
+   * along. Values are `number | boolean` — the worker casts back to
+   * `Partial<DecisionConfig>` at its end.
    */
-  readonly configOverride?: Readonly<Record<string, number>>
+  readonly configOverride?: Readonly<Record<string, number | boolean>>
 }
 
 export type FastWorkerInbound = FastTickInbound

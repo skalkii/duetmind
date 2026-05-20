@@ -21,6 +21,13 @@ export interface DecisionConfig {
   readonly backchannelRate: number
   /** Silence gap after a final transcript before we kick off a reply. */
   readonly silenceThresholdMs: number
+  /**
+   * Mode gates. Flipping any of these false lets the rule engine model
+   * "turn-based" behaviour for A/B comparison against the duplex default.
+   */
+  readonly bargeInEnabled: boolean
+  readonly backchannelEnabled: boolean
+  readonly fastStallEnabled: boolean
 }
 
 export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
@@ -28,6 +35,9 @@ export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
   backchannelMinGapMs: 2000,
   backchannelRate: 0.3,
   silenceThresholdMs: 700,
+  bargeInEnabled: true,
+  backchannelEnabled: true,
+  fastStallEnabled: true,
 }
 
 export const BACKCHANNEL_PHRASES = ['mmhm', 'right', 'uh-huh', 'yeah'] as const
@@ -57,12 +67,14 @@ export function decideTick(
   const random = options.random ?? Math.random
 
   // Rule 1 — barge-in. User talks while we speak → cut ourselves off.
-  if (input.userSpeaking && input.selfSpeaking) {
+  // Gated by cfg.bargeInEnabled so turn-based mode can suppress it.
+  if (cfg.bargeInEnabled && input.userSpeaking && input.selfSpeaking) {
     return { action: 'interrupt_self' }
   }
 
   // Rule 2 — backchannel while user is mid-utterance.
   if (
+    cfg.backchannelEnabled &&
     input.userSpeaking &&
     input.msSinceUserStartedSpeaking > cfg.minUserSpeechForBackchannelMs &&
     input.msSinceLastBackchannel > cfg.backchannelMinGapMs &&

@@ -4,6 +4,35 @@ import { useDebugConfigStore } from '../state/debugConfigStore'
 import { DEFAULT_DECISION_CONFIG } from '../lib/decisionRules'
 import type { TickDecision } from '../types/protocol'
 
+function downloadTranscript(): void {
+  const state = useConversationStore.getState()
+  const cfg = useDebugConfigStore.getState()
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    mode: cfg.mode,
+    config: {
+      silenceThresholdMs: cfg.silenceThresholdMs,
+      backchannelRate: cfg.backchannelRate,
+      bargeInEnabled: cfg.bargeInEnabled,
+      backchannelEnabled: cfg.backchannelEnabled,
+      fastStallEnabled: cfg.fastStallEnabled,
+    },
+    tickCount: state.tickCount,
+    messages: state.messages,
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `duetmind-transcript-${Date.now()}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export interface DebugPanelProps {
   /** Most recent decision the orchestrator dispatched. */
   lastDecision: TickDecision | null
@@ -93,13 +122,22 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
             display={(v) => v.toFixed(2)}
           />
 
-          <button
-            type="button"
-            onClick={resetDebugConfig}
-            className="w-full rounded-md border border-edge/70 bg-ink-deep/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted hover:bg-ink-deep/60"
-          >
-            reset to defaults
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={resetDebugConfig}
+              className="rounded-md border border-edge/70 bg-ink-deep/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted hover:bg-ink-deep/60"
+            >
+              reset to defaults
+            </button>
+            <button
+              type="button"
+              onClick={downloadTranscript}
+              className="rounded-md border border-fast/30 bg-fast/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-fast hover:bg-fast/20"
+            >
+              export transcript
+            </button>
+          </div>
         </div>
       )}
     </section>

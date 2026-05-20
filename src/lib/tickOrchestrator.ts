@@ -207,10 +207,16 @@ export function createTickOrchestrator(
       }
       store.clearUserTranscript()
       store.markReplyStarted()
-      store.setSelfSpeaking(true)
       slowHandedOff = false
       lastSpokenSlow = ''
-      void deps.tts.speak(d.phrase)
+      const cfg = resolveConfig()
+      // Speak the fast stall only when the mode allows it. Turn-based mode
+      // skips the stall and waits for the slow brain to produce a sentence
+      // boundary before speaking — first token through maybeHandoff().
+      if (cfg.fastStallEnabled !== false) {
+        store.setSelfSpeaking(true)
+        void deps.tts.speak(d.phrase)
+      }
       startSlowGen(userText)
     },
     request_slow_reply: () => {

@@ -85,7 +85,7 @@ export function createWorkerDecisionSource(
           ...(configOverride
             ? {
                 configOverride: configOverride as Readonly<
-                  Record<string, number>
+                  Record<string, number | boolean>
                 >,
               }
             : {}),

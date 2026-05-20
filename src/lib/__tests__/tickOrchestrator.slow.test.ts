@@ -313,4 +313,28 @@ describe('orchestrator handoff state machine', () => {
     h.emitToken(' Second.') // arriving after handoff — should not trigger another speak
     expect(h.ttsSpeak).toHaveBeenCalledTimes(2)
   })
+
+  it('turn-based mode skips the fast stall TTS and waits for slow boundary', async () => {
+    const h = makeHarness()
+    const orch = createTickOrchestrator(h.deps, {
+      random: () => 0,
+      config: {
+        bargeInEnabled: false,
+        backchannelEnabled: false,
+        fastStallEnabled: false,
+      },
+    })
+    orch.start()
+    h.emitFinal('hi')
+    h.nowAdvance(1000)
+    await h.tick()
+    // No fast stall TTS — speak count must stay at zero until slow ready.
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(0)
+    expect(h.slowGenerate).toHaveBeenCalledTimes(1)
+    // Slow finishes a sentence → handoff fires immediately because we're
+    // not selfSpeaking (no stall was queued).
+    h.emitToken('Hello there.')
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(1)
+    expect(h.ttsSpeak.mock.calls[0]![0]).toBe('Hello there.')
+  })
 })

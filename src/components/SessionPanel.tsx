@@ -23,7 +23,11 @@ import type {
   SlowWorkerOutbound,
 } from '../types/protocol'
 import { useConversationStore } from '../state/conversationStore'
-import { useDebugConfigStore } from '../state/debugConfigStore'
+import {
+  toDecisionConfig,
+  useDebugConfigStore,
+  type InteractionMode,
+} from '../state/debugConfigStore'
 import {
   createSlowBrain,
   type SlowBrain,
@@ -100,6 +104,8 @@ export function SessionPanel({
   const userSpeaking = useConversationStore((s) => s.userSpeaking)
   const selfSpeaking = useConversationStore((s) => s.selfSpeaking)
   const tickCount = useConversationStore((s) => s.tickCount)
+  const mode = useDebugConfigStore((s) => s.mode)
+  const setMode = useDebugConfigStore((s) => s.setMode)
 
   useEffect(() => {
     return () => {
@@ -141,13 +147,7 @@ export function SessionPanel({
           ...(slowBrain ? { slowBrain } : {}),
         },
         {
-          getConfig: () => {
-            const s = useDebugConfigStore.getState()
-            return {
-              silenceThresholdMs: s.silenceThresholdMs,
-              backchannelRate: s.backchannelRate,
-            }
-          },
+          getConfig: () => toDecisionConfig(useDebugConfigStore.getState()),
           onBargeInLatency: (ms) => {
             setBargeMs(ms)
             onBargeInLatency?.(ms)
@@ -237,6 +237,8 @@ export function SessionPanel({
       </header>
 
       <div className="flex flex-col gap-4 px-5 py-5">
+        <ModeToggle mode={mode} onChange={setMode} />
+
         <div className="flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.16em]">
           <Badge active={userSpeaking} label="user" hue="fast" />
           <Badge active={selfSpeaking} label="self" hue="slow" />
@@ -294,6 +296,55 @@ export function SessionPanel({
         )}
       </div>
     </section>
+  )
+}
+
+function ModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: InteractionMode
+  onChange: (m: InteractionMode) => void
+}) {
+  const opts: Array<{ value: InteractionMode; label: string; hint: string }> = [
+    {
+      value: 'duplex',
+      label: 'duplex',
+      hint: 'listen, nod, interrupt — the default',
+    },
+    {
+      value: 'turn_based',
+      label: 'turn-based',
+      hint: 'classic wait-then-reply, no backchannels, no barge-in',
+    },
+  ]
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Interaction mode"
+      className="flex w-full overflow-hidden rounded-full border border-edge/70 bg-ink-deep/40 p-0.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+    >
+      {opts.map((o) => {
+        const active = o.value === mode
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(o.value)}
+            title={o.hint}
+            className={`flex-1 rounded-full px-3 py-1.5 transition ${
+              active
+                ? 'bg-fast/20 text-fast'
+                : 'text-cream-muted hover:text-cream'
+            }`}
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

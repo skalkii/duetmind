@@ -209,6 +209,9 @@ describe('DEFAULT_DECISION_CONFIG', () => {
       backchannelMinGapMs: 2000,
       backchannelRate: 0.3,
       silenceThresholdMs: 700,
+      bargeInEnabled: true,
+      backchannelEnabled: true,
+      fastStallEnabled: true,
     })
   })
 
@@ -222,5 +225,27 @@ describe('DEFAULT_DECISION_CONFIG', () => {
       { config: { silenceThresholdMs: 50 }, random: alwaysFire },
     )
     expect(d.action).toBe('start_fast_reply')
+  })
+})
+
+describe('decideTick — mode gates', () => {
+  it('bargeInEnabled=false suppresses interrupt_self even with both flags set', () => {
+    const d = decideTick(input({ userSpeaking: true, selfSpeaking: true }), {
+      config: { bargeInEnabled: false },
+      random: alwaysFire,
+    })
+    expect(d.action).not.toBe('interrupt_self')
+  })
+
+  it('backchannelEnabled=false suppresses backchannel even when timing qualifies', () => {
+    const d = decideTick(
+      input({
+        userSpeaking: true,
+        msSinceUserStartedSpeaking: 10_000,
+        msSinceLastBackchannel: 10_000,
+      }),
+      { config: { backchannelEnabled: false }, random: alwaysFire },
+    )
+    expect(d.action).toBe('silent')
   })
 })
