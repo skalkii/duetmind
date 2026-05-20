@@ -16,8 +16,18 @@ import {
   type DecisionSource,
 } from '../lib/decisionSource'
 import { createTypedWorker } from '../lib/workerBridge'
-import type { FastWorkerInbound, FastWorkerOutbound } from '../types/protocol'
+import type {
+  FastWorkerInbound,
+  FastWorkerOutbound,
+  SlowWorkerInbound,
+  SlowWorkerOutbound,
+} from '../types/protocol'
 import { useConversationStore } from '../state/conversationStore'
+import {
+  createSlowBrain,
+  type SlowBrain,
+  type SlowBrainStatus,
+} from '../lib/slowBrainClient'
 
 function createDefaultDecisionSource(): DecisionSource {
   try {
@@ -34,12 +44,28 @@ function createDefaultDecisionSource(): DecisionSource {
   }
 }
 
+function createDefaultSlowBrain(): SlowBrain | null {
+  try {
+    const worker = new Worker(
+      new URL('../workers/slowBrain.worker.ts', import.meta.url),
+      { type: 'module' },
+    )
+    return createSlowBrain(
+      createTypedWorker<SlowWorkerInbound, SlowWorkerOutbound>(worker),
+    )
+  } catch (err) {
+    console.warn('Slow brain worker unavailable.', err)
+    return null
+  }
+}
+
 type SessionStatus = 'idle' | 'starting' | 'live' | 'error'
 
 interface SessionPanelProps {
   audioFactory?: () => AudioMeter
   sttFactory?: () => Stt
   ttsFactory?: () => Tts
+  slowBrainFactory?: () => SlowBrain | null
 }
 
 interface Wired {
@@ -47,15 +73,19 @@ interface Wired {
   stt: Stt
   tts: Tts
   orchestrator: TickOrchestrator
+  slowBrain: SlowBrain | null
 }
 
 export function SessionPanel({
   audioFactory,
   sttFactory,
   ttsFactory,
+  slowBrainFactory,
 }: SessionPanelProps) {
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [slowStatus, setSlowStatus] = useState<SlowBrainStatus>('idle')
+  const [slowProgress, setSlowProgress] = useState(0)
   const wiredRef = useRef<Wired | null>(null)
 
   const userPartial = useConversationStore((s) => s.userTranscriptPartial)
@@ -70,6 +100,7 @@ export function SessionPanel({
       wiredRef.current?.stt.stop()
       wiredRef.current?.audio.stop()
       wiredRef.current?.tts.stopAll()
+      wiredRef.current?.slowBrain?.terminate()
       wiredRef.current = null
     }
   }, [])
@@ -78,11 +109,16 @@ export function SessionPanel({
     if (wiredRef.current) return
     setStatus('starting')
     setError(null)
+    setSlowStatus('idle')
+    setSlowProgress(0)
     try {
       const audio = (audioFactory ?? (() => createAudioMeter()))()
       const stt = (sttFactory ?? (() => createStt()))()
       const tts = (ttsFactory ?? (() => createTts()))()
       const decisionSource = createDefaultDecisionSource()
+      const slowBrain = (slowBrainFactory ?? createDefaultSlowBrain)()
+      slowBrain?.onStatus((s) => setSlowStatus(s))
+      slowBrain?.onProgress((p) => setSlowProgress(p))
       const orchestrator = createTickOrchestrator({
         store: { getState: () => useConversationStore.getState() },
         audio,
@@ -98,7 +134,13 @@ export function SessionPanel({
       await audio.start()
       stt.start()
       orchestrator.start()
-      wiredRef.current = { audio, stt, tts, orchestrator }
+      wiredRef.current = { audio, stt, tts, orchestrator, slowBrain }
+      // Kick off model load in parallel — it's a multi-hundred-MB download
+      // on first visit, cached in IndexedDB afterwards. Don't block UI.
+      void slowBrain?.load().catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'slow brain failed to load'
+        setError(msg)
+      })
       setStatus('live')
     } catch (err) {
       let msg: string
@@ -123,9 +165,12 @@ export function SessionPanel({
     w.stt.stop()
     w.audio.stop()
     w.tts.stopAll()
+    w.slowBrain?.terminate()
     wiredRef.current = null
     useConversationStore.getState().reset()
     setStatus('idle')
+    setSlowStatus('idle')
+    setSlowProgress(0)
   }
 
   const live = status === 'live'
@@ -156,13 +201,30 @@ export function SessionPanel({
         </button>
       </div>
 
-      <div className="flex gap-2 text-[10px] uppercase tracking-wide">
+      <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-wide">
         <StatusBadge active={userSpeaking} label="user" tone="emerald" />
         <StatusBadge active={selfSpeaking} label="self" tone="sky" />
+        <SlowBrainBadge status={slowStatus} />
         <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-zinc-500">
           tick {tickCount}
         </span>
       </div>
+
+      {slowStatus === 'loading' && (
+        <div
+          className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"
+          role="progressbar"
+          aria-label="Slow brain model loading"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(slowProgress * 100)}
+        >
+          <div
+            className="h-full bg-violet-400 transition-[width] duration-150"
+            style={{ width: `${(slowProgress * 100).toFixed(1)}%` }}
+          />
+        </div>
+      )}
 
       <div className="space-y-1 text-left">
         <div className="min-h-[1.25rem] whitespace-pre-wrap text-sm text-zinc-100">
@@ -207,6 +269,26 @@ function StatusBadge({
     <span className={`rounded-full px-2 py-0.5 ${palette}`}>
       {label}
       {active ? ' • on' : ''}
+    </span>
+  )
+}
+
+function SlowBrainBadge({ status }: { status: SlowBrainStatus }) {
+  const palette: Record<SlowBrainStatus, string> = {
+    idle: 'bg-zinc-800 text-zinc-500',
+    loading: 'bg-violet-400/15 text-violet-300',
+    ready: 'bg-violet-400/15 text-violet-200',
+    error: 'bg-red-900/30 text-red-300',
+  }
+  const label: Record<SlowBrainStatus, string> = {
+    idle: 'slow • idle',
+    loading: 'slow • loading',
+    ready: 'slow • ready',
+    error: 'slow • error',
+  }
+  return (
+    <span className={`rounded-full px-2 py-0.5 ${palette[status]}`}>
+      {label[status]}
     </span>
   )
 }
