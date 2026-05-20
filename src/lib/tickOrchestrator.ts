@@ -65,6 +65,12 @@ export interface TickOrchestratorOptions {
   readonly random?: () => number
   readonly config?: Partial<DecisionConfig>
   readonly onTick?: (decision: TickDecision) => void
+  /**
+   * Fires once per barge-in: ms from the audio meter detecting the user's
+   * rising edge (while we were speaking) to `tts.stopAll()` returning.
+   * Spec target: < 200ms perceptual.
+   */
+  readonly onBargeInLatency?: (ms: number) => void
 }
 
 type ActionHandler<T extends TickAction> = (
@@ -93,6 +99,9 @@ export function createTickOrchestrator(
   // Reply-turn flags. Reset on start_fast_reply and on interrupt_self.
   let slowHandedOff = false
   let lastSpokenSlow = ''
+  // Barge-in latency arming. Set on the user-speaking rising edge while we
+  // were already speaking; cleared after the interrupt is executed.
+  let bargeInArmedAt: number | null = null
   const unsubs: Array<() => void> = []
 
   const stopActiveGen = (): void => {
@@ -208,7 +217,12 @@ export function createTickOrchestrator(
       maybeHandoff()
     },
     interrupt_self: () => {
+      // Measurement: capture the arm timestamp before any side effects, then
+      // do the strictly-synchronous stopAll() and snapshot now() right after.
+      // Anything that involves an await goes after the measurement window.
+      const armed = bargeInArmedAt
       deps.tts.stopAll()
+      const stoppedAt = deps.now()
       stopActiveGen()
       const store = deps.store.getState()
       store.setSelfSpeaking(false)
@@ -216,6 +230,10 @@ export function createTickOrchestrator(
       store.clearSlowReply()
       slowHandedOff = false
       lastSpokenSlow = ''
+      if (armed !== null) {
+        options.onBargeInLatency?.(stoppedAt - armed)
+        bargeInArmedAt = null
+      }
     },
   }
 
@@ -275,6 +293,13 @@ export function createTickOrchestrator(
           const cur = deps.store.getState()
           if (cur.userSpeaking !== speaking) {
             cur.setUserSpeaking(speaking, deps.now())
+            // Arm the barge-in stopwatch the instant the user starts speaking
+            // while we're mid-utterance. Disarm on the falling edge.
+            if (speaking && cur.selfSpeaking) {
+              bargeInArmedAt = deps.now()
+            } else if (!speaking) {
+              bargeInArmedAt = null
+            }
           } else if (speaking) {
             cur.setUserSpeaking(true, deps.now())
           }

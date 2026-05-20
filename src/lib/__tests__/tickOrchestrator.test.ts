@@ -247,4 +247,56 @@ describe('createTickOrchestrator', () => {
     await h.tick() // dropped
     expect(useConversationStore.getState().tickCount).toBe(1)
   })
+
+  it('reports barge-in latency from audio edge to stopAll', async () => {
+    const h = makeHarness()
+    const latencies: number[] = []
+    const orch = createTickOrchestrator(h.deps, {
+      random: () => 0,
+      onBargeInLatency: (ms) => latencies.push(ms),
+    })
+    orch.start()
+    useConversationStore.getState().setSelfSpeaking(true)
+    h.nowAdvance(1_000)
+    h.emitRms(0.5) // arm
+    h.nowAdvance(73) // simulate worst-case 73ms before interrupt_self runs
+    await h.tick()
+    expect(latencies).toHaveLength(1)
+    expect(latencies[0]).toBe(73)
+  })
+
+  it('does not report latency when user speaks while self is silent', async () => {
+    const h = makeHarness()
+    const latencies: number[] = []
+    const orch = createTickOrchestrator(h.deps, {
+      random: () => 0,
+      onBargeInLatency: (ms) => latencies.push(ms),
+    })
+    orch.start()
+    // selfSpeaking stays false — no arming
+    h.emitRms(0.5)
+    h.nowAdvance(50)
+    await h.tick()
+    expect(latencies).toHaveLength(0)
+  })
+
+  it('disarms the latency stopwatch on a falling-edge silence', async () => {
+    const h = makeHarness()
+    const latencies: number[] = []
+    const orch = createTickOrchestrator(h.deps, {
+      random: () => 0,
+      onBargeInLatency: (ms) => latencies.push(ms),
+    })
+    orch.start()
+    useConversationStore.getState().setSelfSpeaking(true)
+    h.emitRms(0.5) // arm
+    h.emitRms(0) // user stops — disarm
+    // re-arm fresh, this time we run interrupt_self
+    useConversationStore.getState().setSelfSpeaking(true)
+    h.nowAdvance(500)
+    h.emitRms(0.5)
+    h.nowAdvance(20)
+    await h.tick()
+    expect(latencies).toEqual([20])
+  })
 })

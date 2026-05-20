@@ -86,6 +86,7 @@ export function SessionPanel({
   const [error, setError] = useState<string | null>(null)
   const [slowStatus, setSlowStatus] = useState<SlowBrainStatus>('idle')
   const [slowProgress, setSlowProgress] = useState(0)
+  const [bargeMs, setBargeMs] = useState<number | null>(null)
   const wiredRef = useRef<Wired | null>(null)
 
   const userPartial = useConversationStore((s) => s.userTranscriptPartial)
@@ -119,19 +120,24 @@ export function SessionPanel({
       const slowBrain = (slowBrainFactory ?? createDefaultSlowBrain)()
       slowBrain?.onStatus((s) => setSlowStatus(s))
       slowBrain?.onProgress((p) => setSlowProgress(p))
-      const orchestrator = createTickOrchestrator({
-        store: { getState: () => useConversationStore.getState() },
-        audio,
-        stt,
-        tts,
-        now: () => performance.now(),
-        scheduler: {
-          setInterval: (cb, ms) => setInterval(cb, ms),
-          clearInterval: (h) => clearInterval(h),
+      const orchestrator = createTickOrchestrator(
+        {
+          store: { getState: () => useConversationStore.getState() },
+          audio,
+          stt,
+          tts,
+          now: () => performance.now(),
+          scheduler: {
+            setInterval: (cb, ms) => setInterval(cb, ms),
+            clearInterval: (h) => clearInterval(h),
+          },
+          decisionSource,
+          ...(slowBrain ? { slowBrain } : {}),
         },
-        decisionSource,
-        ...(slowBrain ? { slowBrain } : {}),
-      })
+        {
+          onBargeInLatency: (ms) => setBargeMs(ms),
+        },
+      )
       await audio.start()
       stt.start()
       orchestrator.start()
@@ -170,6 +176,7 @@ export function SessionPanel({
     setStatus('idle')
     setSlowStatus('idle')
     setSlowProgress(0)
+    setBargeMs(null)
   }
 
   const live = status === 'live'
@@ -217,6 +224,7 @@ export function SessionPanel({
           <Badge active={userSpeaking} label="user" hue="fast" />
           <Badge active={selfSpeaking} label="self" hue="slow" />
           <SlowBrainBadge status={slowStatus} />
+          {bargeMs !== null && <BargeBadge ms={bargeMs} />}
           <span className="rounded-full border border-edge/70 bg-ink-deep/40 px-2.5 py-1 text-cream-muted">
             tick {tickCount}
           </span>
@@ -291,6 +299,21 @@ function Badge({
     <span className={`rounded-full border px-2.5 py-1 ${active ? live : idle}`}>
       {label}
       {active ? ' · on' : ''}
+    </span>
+  )
+}
+
+function BargeBadge({ ms }: { ms: number }) {
+  const ok = ms < 200
+  const palette = ok
+    ? 'border-fast/40 bg-fast/15 text-fast'
+    : 'border-coral/40 bg-coral/15 text-coral'
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-1 ${palette}`}
+      title={`Barge-in latency (target < 200ms)`}
+    >
+      barge · {Math.round(ms)}ms
     </span>
   )
 }
