@@ -6,12 +6,12 @@
  *   - Subscribe to audio level + STT events + TTS lifecycle to keep the
  *     conversation store in sync with the world.
  *   - Every TICK_INTERVAL_MS, derive a TickInput, ask `decideTick` for an
- *     action, and dispatch through an action-executor map (one handler
- *     per variant — no switch ladder, OCP for adding actions).
+ *     action, and dispatch through an action-executor map.
+ *   - Run the fast→slow handoff state machine: when the slow reply is
+ *     ready and the fast stall has finished, speak the slow reply as the
+ *     same logical reply turn (no flicker, no double "reply done" edges).
  *
- * Anything else (model loading, prompt building, sentence-boundary
- * detection) is somebody else's problem. Subsystem lifecycles are the
- * caller's — orchestrator only subscribes.
+ * Anything else (model loading, prompt building) is somebody else's problem.
  */
 
 import {
@@ -90,6 +90,9 @@ export function createTickOrchestrator(
   let timer: ReturnType<typeof setInterval> | null = null
   let inFlightTickId = -1
   let activeGen: SlowGenerateHandle | null = null
+  // Reply-turn flags. Reset on start_fast_reply and on interrupt_self.
+  let slowHandedOff = false
+  let lastSpokenSlow = ''
   const unsubs: Array<() => void> = []
 
   const stopActiveGen = (): void => {
@@ -99,21 +102,15 @@ export function createTickOrchestrator(
     }
   }
 
-  const startSlowGen = (): void => {
+  const startSlowGen = (userText: string): void => {
     if (!deps.slowBrain) return
     const store = deps.store.getState()
-    const messages = buildChatMessages(
-      store.messages,
-      store.userTranscriptFinal,
-    )
-    // The slow worker applies the model's own chat template, so we send the
-    // full chat-message array as the "prompt" payload.
+    const messages = buildChatMessages(store.messages, userText)
     const promptPayload = JSON.stringify(messages)
     activeGen = deps.slowBrain.generate({
       prompt: promptPayload,
       onToken: (text) => {
         deps.store.getState().appendSlowReply(text)
-        // Re-read after the mutation — Zustand returns a fresh snapshot.
         const after = deps.store.getState()
         if (
           !after.slowReplyReady &&
@@ -121,12 +118,15 @@ export function createTickOrchestrator(
         ) {
           after.markSlowReplyReady()
         }
+        // If we're past the fast stall (TTS already idle) and the slow
+        // reply has a sentence in hand, hand off right now.
+        maybeHandoff()
       },
       onDone: () => {
         activeGen = null
         const s = deps.store.getState()
-        // Ensure ready flips even if model never produced a sentence end.
         if (!s.slowReplyReady && s.slowReplyText) s.markSlowReplyReady()
+        maybeHandoff()
       },
       onAborted: () => {
         activeGen = null
@@ -135,6 +135,42 @@ export function createTickOrchestrator(
         activeGen = null
       },
     })
+  }
+
+  /**
+   * Hand the buffered slow reply to TTS if it's ready and we're not
+   * already speaking. Returns true if a handoff was queued so the caller
+   * (TTS onEnd) knows to keep the reply turn alive instead of closing it.
+   */
+  const maybeHandoff = (): boolean => {
+    if (slowHandedOff) return false
+    const s = deps.store.getState()
+    if (!s.replyInFlight) return false
+    if (s.selfSpeaking) return false
+    const text = s.slowReplyText
+    if (!text || !s.slowReplyReady) return false
+    s.clearSlowReply()
+    s.setSelfSpeaking(true)
+    slowHandedOff = true
+    lastSpokenSlow = text
+    void deps.tts.speak(text)
+    return true
+  }
+
+  const finishReplyTurn = (): void => {
+    const store = deps.store.getState()
+    store.setSelfSpeaking(false)
+    if (store.replyInFlight) store.markReplyEnded()
+    if (lastSpokenSlow) {
+      store.appendMessage({
+        role: 'assistant',
+        text: lastSpokenSlow,
+        ts: deps.now(),
+        source: 'slow',
+      })
+    }
+    lastSpokenSlow = ''
+    slowHandedOff = false
   }
 
   const handlers: ActionHandlerMap = {
@@ -146,23 +182,30 @@ export function createTickOrchestrator(
     },
     start_fast_reply: (d) => {
       const store = deps.store.getState()
+      const userText = store.userTranscriptFinal
+      if (userText) {
+        store.appendMessage({
+          role: 'user',
+          text: userText,
+          ts: deps.now(),
+        })
+      }
+      store.clearUserTranscript()
       store.markReplyStarted()
       store.setSelfSpeaking(true)
+      slowHandedOff = false
+      lastSpokenSlow = ''
       void deps.tts.speak(d.phrase)
-      // Kick off the slow brain in parallel — it streams tokens into the
-      // store while the fast stall is being spoken, ready to take over at
-      // the first sentence boundary (rule 4).
-      startSlowGen()
+      startSlowGen(userText)
     },
     request_slow_reply: () => {
-      startSlowGen()
+      const store = deps.store.getState()
+      startSlowGen(store.userTranscriptFinal)
     },
     handoff_to_slow: () => {
-      const store = deps.store.getState()
-      const reply = store.slowReplyText
-      if (!reply) return
-      store.clearSlowReply()
-      void deps.tts.speak(reply)
+      // Kept for protocol completeness — actual handoff is driven by
+      // maybeHandoff() in the TTS onEnd / token-stream pipeline.
+      maybeHandoff()
     },
     interrupt_self: () => {
       deps.tts.stopAll()
@@ -171,6 +214,8 @@ export function createTickOrchestrator(
       store.setSelfSpeaking(false)
       store.markReplyEnded()
       store.clearSlowReply()
+      slowHandedOff = false
+      lastSpokenSlow = ''
     },
   }
 
@@ -200,8 +245,6 @@ export function createTickOrchestrator(
   }
 
   const tick = (): void => {
-    // Drop a tick if the previous decision hasn't come back yet — better to
-    // skip a slot than queue up overlapping ticks that race the store.
     if (inFlightTickId !== -1) return
     const store = deps.store.getState()
     store.incrementTick()
@@ -216,7 +259,6 @@ export function createTickOrchestrator(
         dispatch(decision)
       },
       () => {
-        // Treat failures as a silent tick so the loop keeps running.
         inFlightTickId = -1
       },
     )
@@ -234,8 +276,6 @@ export function createTickOrchestrator(
           if (cur.userSpeaking !== speaking) {
             cur.setUserSpeaking(speaking, deps.now())
           } else if (speaking) {
-            // Keep updating "last spoke" while user is still talking so
-            // the silence timer can measure the true gap on falling edge.
             cur.setUserSpeaking(true, deps.now())
           }
         }),
@@ -248,7 +288,20 @@ export function createTickOrchestrator(
         deps.tts.onEnd(() => {
           const store = deps.store.getState()
           store.setSelfSpeaking(false)
-          if (store.replyInFlight) store.markReplyEnded()
+          // Try to hand off to the slow reply before closing the turn.
+          if (maybeHandoff()) return
+          if (slowHandedOff) {
+            // Slow reply already spoken. Anything still streaming is
+            // leftover for this turn — abort it and close.
+            stopActiveGen()
+            if (store.replyInFlight) finishReplyTurn()
+            return
+          }
+          // Slow brain still generating? Keep the turn open until tokens
+          // arrive (maybeHandoff fires from onToken too).
+          if (activeGen) return
+          // Nothing more coming — close the turn cleanly.
+          if (store.replyInFlight) finishReplyTurn()
         }),
       )
 
