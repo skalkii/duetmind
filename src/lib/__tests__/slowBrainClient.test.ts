@@ -135,3 +135,96 @@ describe('createSlowBrain', () => {
     expect(w.isTerminated).toBe(true)
   })
 })
+
+describe('createSlowBrain — generate()', () => {
+  it('sends a generate message with a unique runId', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const h = sb.generate({ prompt: 'hi', onToken: () => undefined })
+    expect(w.sent[0]).toEqual({
+      kind: 'generate',
+      runId: h.runId,
+      prompt: 'hi',
+    })
+  })
+
+  it('routes tokens for the matching runId to onToken', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const tokens: string[] = []
+    const h = sb.generate({
+      prompt: 'hi',
+      onToken: (t) => tokens.push(t),
+    })
+    w.emit({ kind: 'token', runId: h.runId, text: 'Hello' })
+    w.emit({ kind: 'token', runId: h.runId, text: ' world' })
+    expect(tokens).toEqual(['Hello', ' world'])
+  })
+
+  it('drops tokens for unknown runIds', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const tokens: string[] = []
+    sb.generate({ prompt: 'hi', onToken: (t) => tokens.push(t) })
+    w.emit({ kind: 'token', runId: 'not-my-run', text: 'noise' })
+    expect(tokens).toEqual([])
+  })
+
+  it('calls onDone once and stops routing further tokens', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const tokens: string[] = []
+    const onDone = vi.fn()
+    const h = sb.generate({
+      prompt: 'hi',
+      onToken: (t) => tokens.push(t),
+      onDone,
+    })
+    w.emit({ kind: 'token', runId: h.runId, text: 'a' })
+    w.emit({ kind: 'done', runId: h.runId })
+    w.emit({ kind: 'token', runId: h.runId, text: 'b' })
+    expect(tokens).toEqual(['a'])
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('abort() sends an abort message and onAborted fires on aborted event', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const onAborted = vi.fn()
+    const h = sb.generate({ prompt: 'hi', onAborted })
+    h.abort()
+    expect(w.sent[1]).toEqual({ kind: 'abort', runId: h.runId })
+    w.emit({ kind: 'aborted', runId: h.runId })
+    expect(onAborted).toHaveBeenCalledTimes(1)
+  })
+
+  it('abort() after completion is a no-op', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const h = sb.generate({ prompt: 'hi' })
+    w.emit({ kind: 'done', runId: h.runId })
+    h.abort()
+    expect(w.sent.filter((m) => m.kind === 'abort')).toEqual([])
+  })
+
+  it('worker error message rejects every active generation', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const onErrorA = vi.fn()
+    const onErrorB = vi.fn()
+    sb.generate({ prompt: 'one', onError: onErrorA })
+    sb.generate({ prompt: 'two', onError: onErrorB })
+    w.emit({ kind: 'error', message: 'OOM' })
+    expect(onErrorA).toHaveBeenCalledWith('OOM')
+    expect(onErrorB).toHaveBeenCalledWith('OOM')
+  })
+
+  it('terminate aborts active generations through onError', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    const onError = vi.fn()
+    sb.generate({ prompt: 'hi', onError })
+    sb.terminate()
+    expect(onError).toHaveBeenCalledWith('slow brain terminated')
+  })
+})
