@@ -135,8 +135,6 @@ export function SessionPanel({
       stt.start()
       orchestrator.start()
       wiredRef.current = { audio, stt, tts, orchestrator, slowBrain }
-      // Kick off model load in parallel — it's a multi-hundred-MB download
-      // on first visit, cached in IndexedDB afterwards. Don't block UI.
       void slowBrain?.load().catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : 'slow brain failed to load'
         setError(msg)
@@ -177,118 +175,141 @@ export function SessionPanel({
 
   return (
     <section
-      className="flex w-full max-w-lg flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5"
+      className="w-full max-w-lg overflow-hidden rounded-3xl border border-edge/70 bg-surface/70 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)] backdrop-blur"
       aria-label="DuetMind session"
     >
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-zinc-100">Session</h2>
+      <header className="flex items-center justify-between border-b border-edge/60 bg-surface-2/40 px-5 py-3">
+        <div className="flex items-center gap-2">
+          <span aria-hidden="true" className="relative inline-flex h-2.5 w-4">
+            <span
+              className={`absolute left-0 h-2.5 w-2.5 rounded-full transition ${userSpeaking ? 'bg-fast' : 'bg-fast/30'}`}
+            />
+            <span
+              className={`absolute left-1.5 h-2.5 w-2.5 rounded-full transition ${selfSpeaking ? 'bg-slow' : 'bg-slow/30'}`}
+            />
+          </span>
+          <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-cream-muted">
+            session
+          </h2>
+        </div>
         <button
           type="button"
           onClick={live ? stop : start}
           disabled={status === 'starting'}
-          className={`rounded-full px-4 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+          className={`rounded-full px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] transition disabled:opacity-50 ${
             live
-              ? 'border border-red-900/40 bg-red-900/30 text-red-200 hover:bg-red-900/50'
-              : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20'
+              ? 'border border-coral/40 bg-coral/15 text-coral hover:bg-coral/25'
+              : 'border border-fast/40 bg-fast/15 text-fast hover:bg-fast/25'
           }`}
           aria-pressed={live}
         >
           {live
-            ? 'End session'
+            ? 'end session'
             : status === 'starting'
-              ? 'Starting…'
-              : 'Start session'}
+              ? 'starting…'
+              : 'start session'}
         </button>
-      </div>
+      </header>
 
-      <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-wide">
-        <StatusBadge active={userSpeaking} label="user" tone="emerald" />
-        <StatusBadge active={selfSpeaking} label="self" tone="sky" />
-        <SlowBrainBadge status={slowStatus} />
-        <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-zinc-500">
-          tick {tickCount}
-        </span>
-      </div>
+      <div className="flex flex-col gap-4 px-5 py-5">
+        <div className="flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.16em]">
+          <Badge active={userSpeaking} label="user" hue="fast" />
+          <Badge active={selfSpeaking} label="self" hue="slow" />
+          <SlowBrainBadge status={slowStatus} />
+          <span className="rounded-full border border-edge/70 bg-ink-deep/40 px-2.5 py-1 text-cream-muted">
+            tick {tickCount}
+          </span>
+        </div>
 
-      {slowStatus === 'loading' && (
-        <div
-          className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"
-          role="progressbar"
-          aria-label="Slow brain model loading"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(slowProgress * 100)}
-        >
+        {slowStatus === 'loading' && (
           <div
-            className="h-full bg-violet-400 transition-[width] duration-150"
-            style={{ width: `${(slowProgress * 100).toFixed(1)}%` }}
-          />
-        </div>
-      )}
+            className="h-1 w-full overflow-hidden rounded-full bg-edge/60"
+            role="progressbar"
+            aria-label="Slow brain model loading"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(slowProgress * 100)}
+          >
+            <div
+              className="h-full bg-slow transition-[width] duration-150"
+              style={{ width: `${(slowProgress * 100).toFixed(1)}%` }}
+            />
+          </div>
+        )}
 
-      <div className="space-y-1 text-left">
-        <div className="min-h-[1.25rem] whitespace-pre-wrap text-sm text-zinc-100">
-          {userFinal || (
-            <span className="italic text-zinc-500">
-              Final transcript will appear here.
-            </span>
-          )}
+        <div className="space-y-2 text-left">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted/70">
+            transcript
+          </p>
+          <div
+            data-testid="transcript-final"
+            className="min-h-[1.5rem] whitespace-pre-wrap font-display text-xl italic leading-snug text-cream"
+          >
+            {userFinal || (
+              <span className="text-cream-muted/50">
+                say something to begin…
+              </span>
+            )}
+          </div>
+          <div
+            data-testid="transcript-partial"
+            className="min-h-[1.25rem] whitespace-pre-wrap text-sm italic text-cream-muted"
+          >
+            {userPartial}
+          </div>
         </div>
-        <div className="min-h-[1.25rem] whitespace-pre-wrap text-sm italic text-zinc-400">
-          {userPartial}
-        </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="rounded-md border border-coral/30 bg-coral/10 px-3 py-2 font-mono text-[11px] text-coral"
+          >
+            {error}
+          </p>
+        )}
       </div>
-
-      {error && (
-        <p role="alert" className="text-xs text-red-400">
-          {error}
-        </p>
-      )}
     </section>
   )
 }
 
-function StatusBadge({
+function Badge({
   active,
   label,
-  tone,
+  hue,
 }: {
   active: boolean
   label: string
-  tone: 'emerald' | 'sky'
+  hue: 'fast' | 'slow'
 }) {
-  const palette =
-    tone === 'emerald'
-      ? active
-        ? 'bg-emerald-400/15 text-emerald-300'
-        : 'bg-zinc-800 text-zinc-500'
-      : active
-        ? 'bg-sky-400/15 text-sky-300'
-        : 'bg-zinc-800 text-zinc-500'
+  const live =
+    hue === 'fast'
+      ? 'border-fast/40 bg-fast/15 text-fast'
+      : 'border-slow/40 bg-slow/15 text-slow'
+  const idle = 'border-edge/70 bg-ink-deep/40 text-cream-muted'
   return (
-    <span className={`rounded-full px-2 py-0.5 ${palette}`}>
+    <span className={`rounded-full border px-2.5 py-1 ${active ? live : idle}`}>
       {label}
-      {active ? ' • on' : ''}
+      {active ? ' · on' : ''}
     </span>
   )
 }
 
 function SlowBrainBadge({ status }: { status: SlowBrainStatus }) {
-  const palette: Record<SlowBrainStatus, string> = {
-    idle: 'bg-zinc-800 text-zinc-500',
-    loading: 'bg-violet-400/15 text-violet-300',
-    ready: 'bg-violet-400/15 text-violet-200',
-    error: 'bg-red-900/30 text-red-300',
+  const labels: Record<SlowBrainStatus, string> = {
+    idle: 'slow · idle',
+    loading: 'slow · loading',
+    ready: 'slow · ready',
+    error: 'slow · error',
   }
-  const label: Record<SlowBrainStatus, string> = {
-    idle: 'slow • idle',
-    loading: 'slow • loading',
-    ready: 'slow • ready',
-    error: 'slow • error',
+  const palettes: Record<SlowBrainStatus, string> = {
+    idle: 'border-edge/70 bg-ink-deep/40 text-cream-muted',
+    loading: 'border-slow/40 bg-slow/15 text-slow',
+    ready: 'border-slow/50 bg-slow/20 text-slow',
+    error: 'border-coral/40 bg-coral/15 text-coral',
   }
   return (
-    <span className={`rounded-full px-2 py-0.5 ${palette[status]}`}>
-      {label[status]}
+    <span className={`rounded-full border px-2.5 py-1 ${palettes[status]}`}>
+      {labels[status]}
     </span>
   )
 }

@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {
@@ -11,13 +15,49 @@ body,
 
 body {
   font-family:
+    Geist,
     system-ui,
     -apple-system,
     'Segoe UI',
-    Roboto,
     sans-serif;
+  font-feature-settings:
+    'ss01' on,
+    'cv11' on;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0b0b10;
-  color: #e8e8ee;
+  background:
+    radial-gradient(
+      ellipse 80% 60% at 50% 0%,
+      rgba(176, 131, 255, 0.08),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 80% 100%,
+      rgba(255, 184, 107, 0.06),
+      transparent 60%
+    ),
+    #0d0b14;
+  color: #f0ead2;
+}
+
+::selection {
+  background: rgba(255, 184, 107, 0.35);
+  color: #f0ead2;
+}
+
+/* Subtle grain on the page wash — a small bit of texture so flat regions
+   don't feel sterile. Inline data URI keeps it offline. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  z-index: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.55'/></svg>");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }

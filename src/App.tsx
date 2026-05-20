@@ -1,22 +1,33 @@
 import { SessionPanel } from './components/SessionPanel'
+import { SiteFooter } from './components/SiteFooter'
+import { SiteHeader } from './components/SiteHeader'
 
 export default function App() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start gap-8 px-6 py-12 text-center">
-      <header className="flex flex-col items-center gap-2">
-        <h1 className="text-4xl font-semibold tracking-tight text-white">
-          DuetMind
-        </h1>
-        <p className="max-w-md text-sm text-zinc-400">
-          Browser-native interaction model. Two brains, one tick loop.
-        </p>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <SiteHeader />
 
-      <SessionPanel />
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+        <div className="flex w-full max-w-xl flex-col items-center gap-10 text-center">
+          <div className="space-y-3">
+            <h1 className="font-display text-5xl italic leading-[1.05] tracking-tight text-cream">
+              two brains,
+              <br />
+              one tick loop.
+            </h1>
+            <p className="mx-auto max-w-md text-sm leading-relaxed text-cream-muted">
+              A browser-native interaction model. The fast brain decides{' '}
+              <span className="text-fast">when</span> to listen, nod, or
+              interrupt; the slow brain decides{' '}
+              <span className="text-slow">what</span> to say.
+            </p>
+          </div>
 
-      <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">
-        T2.3 tick orchestrator + backchannel
-      </span>
-    </main>
+          <SessionPanel />
+        </div>
+      </main>
+
+      <SiteFooter />
+    </div>
   )
 }
