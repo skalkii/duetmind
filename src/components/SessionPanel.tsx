@@ -10,7 +10,29 @@ import {
   createTickOrchestrator,
   type TickOrchestrator,
 } from '../lib/tickOrchestrator'
+import {
+  createInlineDecisionSource,
+  createWorkerDecisionSource,
+  type DecisionSource,
+} from '../lib/decisionSource'
+import { createTypedWorker } from '../lib/workerBridge'
+import type { FastWorkerInbound, FastWorkerOutbound } from '../types/protocol'
 import { useConversationStore } from '../state/conversationStore'
+
+function createDefaultDecisionSource(): DecisionSource {
+  try {
+    const worker = new Worker(
+      new URL('../workers/fastBrain.worker.ts', import.meta.url),
+      { type: 'module' },
+    )
+    return createWorkerDecisionSource(
+      createTypedWorker<FastWorkerInbound, FastWorkerOutbound>(worker),
+    )
+  } catch (err) {
+    console.warn('Fast brain worker unavailable, falling back to inline.', err)
+    return createInlineDecisionSource()
+  }
+}
 
 type SessionStatus = 'idle' | 'starting' | 'live' | 'error'
 
@@ -60,6 +82,7 @@ export function SessionPanel({
       const audio = (audioFactory ?? (() => createAudioMeter()))()
       const stt = (sttFactory ?? (() => createStt()))()
       const tts = (ttsFactory ?? (() => createTts()))()
+      const decisionSource = createDefaultDecisionSource()
       const orchestrator = createTickOrchestrator({
         store: { getState: () => useConversationStore.getState() },
         audio,
@@ -70,6 +93,7 @@ export function SessionPanel({
           setInterval: (cb, ms) => setInterval(cb, ms),
           clearInterval: (h) => clearInterval(h),
         },
+        decisionSource,
       })
       await audio.start()
       stt.start()

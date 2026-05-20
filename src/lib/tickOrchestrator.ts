@@ -14,7 +14,11 @@
  * caller's — orchestrator only subscribes.
  */
 
-import { decideTick, type DecisionConfig } from './decisionRules'
+import {
+  createInlineDecisionSource,
+  type DecisionSource,
+} from './decisionSource'
+import type { DecisionConfig } from './decisionRules'
 import type { AudioMeter } from './audio'
 import type { Stt } from './stt'
 import type { Tts } from './tts'
@@ -47,6 +51,8 @@ export interface TickOrchestratorDeps {
     setInterval: (cb: () => void, ms: number) => ReturnType<typeof setInterval>
     clearInterval: (h: ReturnType<typeof setInterval>) => void
   }
+  /** Source of TickDecisions — defaults to inline `decideTick`. */
+  decisionSource?: DecisionSource
 }
 
 export interface TickOrchestratorOptions {
@@ -72,9 +78,13 @@ export function createTickOrchestrator(
   const speakingThreshold = options.speakingThreshold ?? DEFAULT_SPEAKING_RMS
   const random = options.random ?? Math.random
   const config = options.config ?? {}
+  const decisionSource =
+    deps.decisionSource ?? createInlineDecisionSource({ config, random })
+  const ownsDecisionSource = !deps.decisionSource
 
   let running = false
   let timer: ReturnType<typeof setInterval> | null = null
+  let inFlightTickId = -1
   const unsubs: Array<() => void> = []
 
   const handlers: ActionHandlerMap = {
@@ -135,12 +145,26 @@ export function createTickOrchestrator(
   }
 
   const tick = (): void => {
+    // Drop a tick if the previous decision hasn't come back yet — better to
+    // skip a slot than queue up overlapping ticks that race the store.
+    if (inFlightTickId !== -1) return
     const store = deps.store.getState()
     store.incrementTick()
-    const input = selectTickInput(store, deps.now())
-    const decision = decideTick(input, { config, random })
-    options.onTick?.(decision)
-    dispatch(decision)
+    const tickId = store.tickCount
+    inFlightTickId = tickId
+    const input = selectTickInput(deps.store.getState(), deps.now())
+    decisionSource.decide(tickId, input).then(
+      (decision) => {
+        if (!running) return
+        inFlightTickId = -1
+        options.onTick?.(decision)
+        dispatch(decision)
+      },
+      () => {
+        // Treat failures as a silent tick so the loop keeps running.
+        inFlightTickId = -1
+      },
+    )
   }
 
   return {
@@ -182,6 +206,7 @@ export function createTickOrchestrator(
       timer = null
       for (const off of unsubs) off()
       unsubs.length = 0
+      if (ownsDecisionSource) decisionSource.dispose()
     },
     get isRunning(): boolean {
       return running

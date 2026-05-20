@@ -15,10 +15,15 @@ interface Harness {
   emitPartial(text: string): void
   emitFinal(text: string): void
   emitTtsEnd(): void
-  tick(): void
+  tick(): Promise<void>
   ttsSpeak: ReturnType<typeof vi.fn>
   ttsStopAll: ReturnType<typeof vi.fn>
   nowAdvance(ms: number): void
+}
+
+/** Flush enough microtasks for the decision Promise + .then handler. */
+async function flush(): Promise<void> {
+  for (let i = 0; i < 4; i++) await Promise.resolve()
 }
 
 function makeHarness(): Harness {
@@ -90,7 +95,10 @@ function makeHarness(): Harness {
     emitPartial: (t) => partialCb?.(t),
     emitFinal: (t) => finalCb?.(t),
     emitTtsEnd: () => ttsEndCb?.(),
-    tick: () => scheduled?.(),
+    tick: async () => {
+      scheduled?.()
+      await flush()
+    },
     ttsSpeak,
     ttsStopAll,
     nowAdvance: (ms) => {
@@ -130,73 +138,70 @@ describe('createTickOrchestrator', () => {
     expect(s.userLastSpokeAt).toBe(100)
   })
 
-  it('emits a backchannel after 3s of sustained user speech', () => {
+  it('emits a backchannel after 3s of sustained user speech', async () => {
     const h = makeHarness()
     const decisions: TickDecision[] = []
     const orch = createTickOrchestrator(h.deps, {
-      random: () => 0, // pass rate gate + pick first phrase
+      random: () => 0,
       onTick: (d) => decisions.push(d),
     })
     orch.start()
     h.nowAdvance(1000)
     h.emitRms(0.5)
     h.nowAdvance(3500)
-    // keep user speaking — re-trigger rms above threshold
     h.emitRms(0.5)
-    h.tick()
+    await h.tick()
     const last = decisions[decisions.length - 1]!
     expect(last.action).toBe('backchannel')
     expect(h.ttsSpeak).toHaveBeenCalled()
     expect(useConversationStore.getState().lastBackchannelAt).not.toBeNull()
   })
 
-  it('barges in when user starts speaking while self speaks', () => {
+  it('barges in when user starts speaking while self speaks', async () => {
     const h = makeHarness()
     const orch = createTickOrchestrator(h.deps, { random: () => 0 })
     orch.start()
-    // Force selfSpeaking = true via store
     useConversationStore.getState().setSelfSpeaking(true)
     h.emitRms(0.5)
-    h.tick()
+    await h.tick()
     expect(h.ttsStopAll).toHaveBeenCalledTimes(1)
     expect(useConversationStore.getState().selfSpeaking).toBe(false)
   })
 
-  it('kicks off a fast reply after 700ms silence + final transcript', () => {
+  it('kicks off a fast reply after 700ms silence + final transcript', async () => {
     const h = makeHarness()
     const orch = createTickOrchestrator(h.deps, { random: () => 0 })
     orch.start()
-    // user speaks then stops
     h.emitRms(0.5)
     h.emitFinal('what time is it')
     h.emitRms(0)
     h.nowAdvance(800)
-    h.tick()
+    await h.tick()
     const s = useConversationStore.getState()
     expect(s.replyInFlight).toBe(true)
     expect(s.selfSpeaking).toBe(true)
     expect(h.ttsSpeak).toHaveBeenCalledTimes(1)
   })
 
-  it('does not start a second fast reply while one is in flight', () => {
+  it('does not start a second fast reply while one is in flight', async () => {
     const h = makeHarness()
     const orch = createTickOrchestrator(h.deps, { random: () => 0 })
     orch.start()
     h.emitFinal('hello')
     h.nowAdvance(1500)
-    h.tick()
+    await h.tick()
     expect(h.ttsSpeak).toHaveBeenCalledTimes(1)
-    h.tick()
-    expect(h.ttsSpeak).toHaveBeenCalledTimes(1) // suppressed by replyInFlight
+    await h.tick()
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(1)
   })
 
-  it('clears selfSpeaking + replyInFlight when tts ends', () => {
+  it('clears selfSpeaking + replyInFlight when tts ends', async () => {
     const h = makeHarness()
     const orch = createTickOrchestrator(h.deps, { random: () => 0 })
     orch.start()
     h.emitFinal('hi')
     h.nowAdvance(1000)
-    h.tick()
+    await h.tick()
     expect(useConversationStore.getState().replyInFlight).toBe(true)
     h.emitTtsEnd()
     const s = useConversationStore.getState()
@@ -211,18 +216,35 @@ describe('createTickOrchestrator', () => {
     expect(orch.isRunning).toBe(true)
     orch.stop()
     expect(orch.isRunning).toBe(false)
-    // After stop, audio events should not mutate state.
     h.emitRms(0.5)
     expect(useConversationStore.getState().userSpeaking).toBe(false)
   })
 
-  it('incrementTick monotonically advances per tick', () => {
+  it('incrementTick monotonically advances per tick', async () => {
     const h = makeHarness()
     const orch = createTickOrchestrator(h.deps)
     orch.start()
-    h.tick()
-    h.tick()
-    h.tick()
+    await h.tick()
+    await h.tick()
+    await h.tick()
     expect(useConversationStore.getState().tickCount).toBe(3)
+  })
+
+  it('drops a tick if the previous decision has not resolved yet', async () => {
+    const h = makeHarness()
+    // Stuck decision source — never resolves
+    const stuck: TickOrchestratorDeps['decisionSource'] = {
+      decide: () => new Promise<TickDecision>(() => undefined),
+      dispose: () => undefined,
+    }
+    const orch = createTickOrchestrator({
+      ...h.deps,
+      decisionSource: stuck,
+    })
+    orch.start()
+    await h.tick() // fires once, stays in-flight forever
+    await h.tick() // dropped
+    await h.tick() // dropped
+    expect(useConversationStore.getState().tickCount).toBe(1)
   })
 })
