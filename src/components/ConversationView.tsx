@@ -26,7 +26,7 @@ export function ConversationView() {
         conversation
       </h2>
       <ol
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-3 px-1"
         aria-live="polite"
         aria-atomic="false"
         aria-relevant="additions text"
@@ -34,7 +34,7 @@ export function ConversationView() {
         {messages.map((m, i) => (
           <li
             key={`${m.ts}-${i}`}
-            className={`max-w-[85%] rounded-2xl border px-4 py-2.5 text-sm leading-relaxed ${
+            className={`max-w-[88%] rounded-2xl border px-3 py-2.5 text-sm leading-relaxed sm:max-w-[78%] sm:px-4 ${
               m.role === 'user'
                 ? 'self-end border-fast/30 bg-fast/10 text-cream'
                 : 'self-start border-slow/30 bg-slow/10 text-cream'
@@ -50,7 +50,7 @@ export function ConversationView() {
           </li>
         ))}
         {replyInFlight && slowReplyText && (
-          <li className="max-w-[85%] self-start rounded-2xl border border-slow/30 bg-slow/10 px-4 py-2.5 text-sm leading-relaxed text-cream">
+          <li className="max-w-[88%] self-start rounded-2xl border border-slow/30 bg-slow/10 px-3 py-2.5 text-sm leading-relaxed text-cream sm:max-w-[78%] sm:px-4">
             <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-slow">
               assistant · streaming
             </span>

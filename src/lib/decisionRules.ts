@@ -99,31 +99,18 @@ export function decideTick(
     return { action: 'handoff_to_slow' }
   }
 
-  // Rule 3a — confident turn-end short-circuit. When the classifier is
-  // sure the user has finished (terminal punctuation, question, end
-  // phrase…), fire the reply after the short `confidentTurnEndMs` gap
-  // instead of the conservative full silence wait.
+  // Rule 3 — start a fast reply once the user has paused with a committed
+  // transcript and no reply already in flight. The pause threshold has two
+  // tiers: the short `confidentTurnEndMs` is enough when the classifier
+  // says we're confidently past a turn boundary; otherwise we wait the
+  // conservative `silenceThresholdMs`.
   if (
     !input.userSpeaking &&
     !input.replyInFlight &&
-    input.msSinceUserLastSpoke > cfg.confidentTurnEndMs &&
     input.userTranscriptFinal !== '' &&
-    input.turnEndConfidence >= cfg.turnEndConfidenceThreshold
-  ) {
-    return {
-      action: 'start_fast_reply',
-      phrase: pick(FAST_STALL_PHRASES, random),
-    }
-  }
-
-  // Rule 3 — silence gap after user committed a final transcript, no reply
-  // queued yet. Kick off a fast stall; the orchestrator's start_fast_reply
-  // handler is responsible for also pinging the slow brain in parallel.
-  if (
-    !input.userSpeaking &&
-    !input.replyInFlight &&
-    input.msSinceUserLastSpoke > cfg.silenceThresholdMs &&
-    input.userTranscriptFinal !== ''
+    (input.msSinceUserLastSpoke > cfg.silenceThresholdMs ||
+      (input.msSinceUserLastSpoke > cfg.confidentTurnEndMs &&
+        input.turnEndConfidence >= cfg.turnEndConfidenceThreshold))
   ) {
     return {
       action: 'start_fast_reply',

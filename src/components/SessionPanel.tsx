@@ -36,34 +36,33 @@ import {
 } from '../lib/slowBrainClient'
 import type { TickDecision } from '../types/protocol'
 
-function createDefaultDecisionSource(): DecisionSource {
+/**
+ * Construct a typed worker from a module-URL or log and return null if the
+ * environment doesn't support workers (older browsers, locked-down iframes).
+ */
+function tryWorker<TIn, TOut>(url: URL, label: string) {
   try {
-    const worker = new Worker(
-      new URL('../workers/fastBrain.worker.ts', import.meta.url),
-      { type: 'module' },
-    )
-    return createWorkerDecisionSource(
-      createTypedWorker<FastWorkerInbound, FastWorkerOutbound>(worker),
-    )
+    return createTypedWorker<TIn, TOut>(new Worker(url, { type: 'module' }))
   } catch (err) {
-    console.warn('Fast brain worker unavailable, falling back to inline.', err)
-    return createInlineDecisionSource()
+    console.warn(`${label} worker unavailable.`, err)
+    return null
   }
 }
 
+function createDefaultDecisionSource(): DecisionSource {
+  const w = tryWorker<FastWorkerInbound, FastWorkerOutbound>(
+    new URL('../workers/fastBrain.worker.ts', import.meta.url),
+    'Fast brain',
+  )
+  return w ? createWorkerDecisionSource(w) : createInlineDecisionSource()
+}
+
 function createDefaultSlowBrain(): SlowBrain | null {
-  try {
-    const worker = new Worker(
-      new URL('../workers/slowBrain.worker.ts', import.meta.url),
-      { type: 'module' },
-    )
-    return createSlowBrain(
-      createTypedWorker<SlowWorkerInbound, SlowWorkerOutbound>(worker),
-    )
-  } catch (err) {
-    console.warn('Slow brain worker unavailable.', err)
-    return null
-  }
+  const w = tryWorker<SlowWorkerInbound, SlowWorkerOutbound>(
+    new URL('../workers/slowBrain.worker.ts', import.meta.url),
+    'Slow brain',
+  )
+  return w ? createSlowBrain(w) : null
 }
 
 type SessionStatus = 'idle' | 'starting' | 'live' | 'error'
@@ -207,7 +206,7 @@ export function SessionPanel({
       className="w-full max-w-lg overflow-hidden rounded-3xl border border-edge/70 bg-surface/70 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)] backdrop-blur"
       aria-label="DuetMind session"
     >
-      <header className="flex items-center justify-between border-b border-edge/60 bg-surface-2/40 px-5 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-edge/60 bg-surface-2/40 px-4 py-3 sm:px-5">
         <div className="flex items-center gap-2">
           <span aria-hidden="true" className="relative inline-flex h-2.5 w-4">
             <span
@@ -225,7 +224,7 @@ export function SessionPanel({
           type="button"
           onClick={live ? stop : start}
           disabled={status === 'starting'}
-          className={`rounded-full px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] transition disabled:opacity-50 ${
+          className={`whitespace-nowrap rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] transition disabled:opacity-50 sm:px-4 sm:tracking-[0.16em] ${
             live
               ? 'border border-coral/40 bg-coral/15 text-coral hover:bg-coral/25'
               : 'border border-fast/40 bg-fast/15 text-fast hover:bg-fast/25'
@@ -240,7 +239,7 @@ export function SessionPanel({
         </button>
       </header>
 
-      <div className="flex flex-col gap-4 px-5 py-5">
+      <div className="flex flex-col gap-4 px-4 py-5 sm:px-5">
         <ModeToggle mode={mode} onChange={setMode} />
 
         <ModelPicker
@@ -249,12 +248,12 @@ export function SessionPanel({
           disabled={live || status === 'starting'}
         />
 
-        <div className="flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.16em]">
+        <div className="flex flex-wrap gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] sm:gap-2 sm:text-[10px] sm:tracking-[0.16em]">
           <Badge active={userSpeaking} label="user" hue="fast" />
           <Badge active={selfSpeaking} label="self" hue="slow" />
           <SlowBrainBadge status={slowStatus} />
           {bargeMs !== null && <BargeBadge ms={bargeMs} />}
-          <span className="rounded-full border border-edge/70 bg-ink-deep/40 px-2.5 py-1 text-cream-muted">
+          <span className="whitespace-nowrap rounded-full border border-edge/70 bg-ink-deep/40 px-2 py-1 text-cream-muted sm:px-2.5">
             tick {tickCount}
           </span>
         </div>
@@ -418,7 +417,9 @@ function Badge({
       : 'border-slow/40 bg-slow/15 text-slow'
   const idle = 'border-edge/70 bg-ink-deep/40 text-cream-muted'
   return (
-    <span className={`rounded-full border px-2.5 py-1 ${active ? live : idle}`}>
+    <span
+      className={`whitespace-nowrap rounded-full border px-2 py-1 sm:px-2.5 ${active ? live : idle}`}
+    >
       {label}
       {active ? ' · on' : ''}
     </span>
@@ -432,7 +433,7 @@ function BargeBadge({ ms }: { ms: number }) {
     : 'border-coral/40 bg-coral/15 text-coral'
   return (
     <span
-      className={`rounded-full border px-2.5 py-1 ${palette}`}
+      className={`whitespace-nowrap rounded-full border px-2 py-1 sm:px-2.5 ${palette}`}
       title={`Barge-in latency (target < 200ms)`}
     >
       barge · {Math.round(ms)}ms
@@ -454,7 +455,9 @@ function SlowBrainBadge({ status }: { status: SlowBrainStatus }) {
     error: 'border-coral/40 bg-coral/15 text-coral',
   }
   return (
-    <span className={`rounded-full border px-2.5 py-1 ${palettes[status]}`}>
+    <span
+      className={`whitespace-nowrap rounded-full border px-2 py-1 sm:px-2.5 ${palettes[status]}`}
+    >
       {labels[status]}
     </span>
   )

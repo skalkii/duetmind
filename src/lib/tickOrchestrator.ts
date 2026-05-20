@@ -28,11 +28,7 @@ import {
   selectTickInput,
   type ConversationStore,
 } from '../state/conversationStore'
-import {
-  exhaustiveCheck,
-  type TickAction,
-  type TickDecision,
-} from '../types/protocol'
+import type { TickAction, TickDecision } from '../types/protocol'
 
 export const TICK_INTERVAL_MS = 200
 export const DEFAULT_SPEAKING_RMS = 0.01
@@ -250,28 +246,13 @@ export function createTickOrchestrator(
   }
 
   const dispatch = (decision: TickDecision): void => {
-    switch (decision.action) {
-      case 'silent':
-        handlers.silent(decision)
-        return
-      case 'backchannel':
-        handlers.backchannel(decision)
-        return
-      case 'start_fast_reply':
-        handlers.start_fast_reply(decision)
-        return
-      case 'request_slow_reply':
-        handlers.request_slow_reply(decision)
-        return
-      case 'handoff_to_slow':
-        handlers.handoff_to_slow(decision)
-        return
-      case 'interrupt_self':
-        handlers.interrupt_self(decision)
-        return
-      default:
-        exhaustiveCheck(decision)
-    }
+    // The handlers map is exhaustive over TickAction (enforced at compile
+    // time by `ActionHandlerMap`), so a direct table lookup beats a switch
+    // ladder and stays correct if new actions are added.
+    const handler = handlers[decision.action] as ActionHandler<
+      typeof decision.action
+    >
+    handler(decision)
   }
 
   const tick = (): void => {
@@ -308,17 +289,18 @@ export function createTickOrchestrator(
         deps.audio.onLevel((rms) => {
           const speaking = rms >= speakingThreshold
           const cur = deps.store.getState()
-          if (cur.userSpeaking !== speaking) {
-            cur.setUserSpeaking(speaking, deps.now())
-            // Arm the barge-in stopwatch the instant the user starts speaking
-            // while we're mid-utterance. Disarm on the falling edge.
-            if (speaking && cur.selfSpeaking) {
-              bargeInArmedAt = deps.now()
-            } else if (!speaking) {
-              bargeInArmedAt = null
-            }
-          } else if (speaking) {
-            cur.setUserSpeaking(true, deps.now())
+          // Only react on level edges. STT's commitUserFinal is the
+          // authoritative source for "last spoke" — re-firing the setter
+          // every 50ms while the user is already speaking would burn
+          // store snapshots for no signal.
+          if (cur.userSpeaking === speaking) return
+          cur.setUserSpeaking(speaking, deps.now())
+          // Arm the barge-in stopwatch the instant the user starts speaking
+          // while we're mid-utterance. Disarm on the falling edge.
+          if (speaking && cur.selfSpeaking) {
+            bargeInArmedAt = deps.now()
+          } else if (!speaking) {
+            bargeInArmedAt = null
           }
         }),
         deps.stt.onPartial((text) => {

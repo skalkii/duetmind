@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildChatMessages, buildPrompt, isSentenceBoundary } from '../prompt'
+import { buildChatMessages, isSentenceBoundary } from '../prompt'
 import type { Message } from '../../state/conversationStore'
 
 const msg = (role: 'user' | 'assistant', text: string, ts = 0): Message => ({
@@ -41,18 +41,6 @@ describe('buildChatMessages', () => {
   it('honours a custom system prompt', () => {
     const out = buildChatMessages([], 'hi', { system: 'be terse' })
     expect(out[0]!.content).toBe('be terse')
-  })
-})
-
-describe('buildPrompt', () => {
-  it('flattens chat messages into role-tagged lines', () => {
-    const out = buildPrompt(
-      [msg('user', 'hi'), msg('assistant', 'hello')],
-      'how are you',
-    )
-    const lines = out.split('\n')
-    expect(lines[0]!.startsWith('system: ')).toBe(true)
-    expect(lines.at(-1)).toBe('user: how are you')
   })
 })
 

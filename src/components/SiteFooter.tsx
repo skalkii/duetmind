@@ -2,7 +2,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t border-edge/60 bg-ink-deep/40">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 py-6 text-xs text-cream-muted sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-mono uppercase tracking-[0.16em]">
+        <p className="font-mono uppercase tracking-[0.12em] sm:tracking-[0.16em]">
           runs offline · no api keys · no telemetry
         </p>
         <nav className="flex flex-wrap gap-x-5 gap-y-2 font-mono">

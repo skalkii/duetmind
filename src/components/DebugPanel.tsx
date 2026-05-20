@@ -81,7 +81,7 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
           id="debug-panel-body"
           className="space-y-4 border-t border-edge/60 px-4 py-4"
         >
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-2 font-mono text-[11px] sm:grid-cols-2">
             <Metric label="tick" value={tickCount.toString()} />
             <Metric label="last decision" value={lastDecisionLabel} />
             <Metric
@@ -122,18 +122,18 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
             display={(v) => v.toFixed(2)}
           />
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <button
               type="button"
               onClick={resetDebugConfig}
-              className="rounded-md border border-edge/70 bg-ink-deep/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted hover:bg-ink-deep/60"
+              className="rounded-md border border-edge/70 bg-ink-deep/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted hover:bg-ink-deep/60"
             >
               reset to defaults
             </button>
             <button
               type="button"
               onClick={downloadTranscript}
-              className="rounded-md border border-fast/30 bg-fast/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-fast hover:bg-fast/20"
+              className="rounded-md border border-fast/30 bg-fast/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-fast hover:bg-fast/20"
             >
               export transcript
             </button>
@@ -146,11 +146,11 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-[9px] uppercase tracking-[0.18em] text-cream-muted">
         {label}
       </dt>
-      <dd className="text-cream">{value}</dd>
+      <dd className="break-words text-cream">{value}</dd>
     </div>
   )
 }

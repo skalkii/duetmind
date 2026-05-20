@@ -18,7 +18,7 @@ export function SiteHeader() {
             DuetMind
           </span>
         </a>
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted">
+        <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted sm:inline">
           interaction model · v0.1
         </span>
       </div>

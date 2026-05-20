@@ -23,11 +23,11 @@ export default function App() {
       <main
         id="main"
         tabIndex={-1}
-        className="flex flex-1 flex-col items-center justify-start px-6 py-10"
+        className="flex flex-1 flex-col items-center justify-start px-5 py-10 sm:px-6"
       >
         <div className="flex w-full max-w-xl flex-col items-center gap-8 text-center">
           <div className="space-y-3">
-            <h1 className="font-display text-5xl italic leading-[1.05] tracking-tight text-cream">
+            <h1 className="font-display text-4xl italic leading-[1.05] tracking-tight text-cream sm:text-5xl">
               two brains,
               <br />
               one tick loop.

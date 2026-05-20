@@ -53,10 +53,6 @@ function makeRunId(): string {
   return `r${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-interface ActiveRun {
-  options: SlowGenerateOptions
-}
-
 export function createSlowBrain(
   worker: TypedWorker<SlowWorkerInbound, SlowWorkerOutbound>,
 ): SlowBrain {
@@ -69,7 +65,7 @@ export function createSlowBrain(
     resolve: () => void
     reject: (e: Error) => void
   }> = []
-  const activeRuns = new Map<string, ActiveRun>()
+  const activeRuns = new Map<string, SlowGenerateOptions>()
 
   const setStatus = (next: SlowBrainStatus): void => {
     if (status === next) return
@@ -86,11 +82,9 @@ export function createSlowBrain(
   }
 
   const failAllRuns = (message: string): void => {
-    const runs = [...activeRuns.entries()]
+    const runs = [...activeRuns.values()]
     activeRuns.clear()
-    for (const [, { options }] of runs) {
-      options.onError?.(message)
-    }
+    for (const opts of runs) opts.onError?.(message)
   }
 
   worker.onMessage((msg) => {
@@ -107,19 +101,19 @@ export function createSlowBrain(
         return
       case 'token': {
         const run = activeRuns.get(msg.runId)
-        run?.options.onToken?.(msg.text)
+        run?.onToken?.(msg.text)
         return
       }
       case 'done': {
         const run = activeRuns.get(msg.runId)
         activeRuns.delete(msg.runId)
-        run?.options.onDone?.()
+        run?.onDone?.()
         return
       }
       case 'aborted': {
         const run = activeRuns.get(msg.runId)
         activeRuns.delete(msg.runId)
-        run?.options.onAborted?.()
+        run?.onAborted?.()
         return
       }
       case 'error': {
@@ -133,7 +127,7 @@ export function createSlowBrain(
         if (msg.runId !== undefined) {
           const run = activeRuns.get(msg.runId)
           activeRuns.delete(msg.runId)
-          run?.options.onError?.(msg.message)
+          run?.onError?.(msg.message)
         } else if (activeRuns.size > 0) {
           failAllRuns(msg.message)
         }
@@ -167,7 +161,7 @@ export function createSlowBrain(
     },
     generate(options): SlowGenerateHandle {
       const runId = makeRunId()
-      activeRuns.set(runId, { options })
+      activeRuns.set(runId, options)
       worker.send({
         kind: 'generate',
         runId,

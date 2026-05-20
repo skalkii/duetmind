@@ -44,20 +44,6 @@ export function buildChatMessages(
   return out
 }
 
-/**
- * Flatten chat-message array into a single string. The slow worker handles
- * the official chat template; this fallback is the form we send when a
- * downstream consumer wants plain text (e.g. logging, debug panel).
- */
-export function buildPrompt(
-  history: readonly Message[],
-  currentUser: string,
-  options: BuildPromptOptions = {},
-): string {
-  const msgs = buildChatMessages(history, currentUser, options)
-  return msgs.map((m) => `${m.role}: ${m.content}`).join('\n')
-}
-
 const SENTENCE_END = /[.!?]\s*$/
 
 /**
