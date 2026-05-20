@@ -2,7 +2,7 @@ import { ThemeToggle } from './ThemeToggle'
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-edge bg-surface/90 backdrop-blur supports-[backdrop-filter]:bg-surface/75 dark:border-edge/70 dark:bg-ink/85 dark:supports-[backdrop-filter]:bg-ink/70">
+    <header className="sticky top-0 z-40 border-b border-edge bg-surface shadow-[0_2px_8px_-2px_rgba(70,55,30,0.12)] backdrop-blur dark:border-edge/70 dark:bg-ink/85 dark:shadow-none dark:supports-[backdrop-filter]:bg-ink/70">
       <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-5 py-3 sm:px-6 sm:py-4">
         <a
           href="/"
@@ -13,8 +13,8 @@ export function SiteHeader() {
             aria-hidden="true"
             className="relative inline-flex h-6 w-9 items-center"
           >
-            <span className="absolute left-0 h-5 w-5 rounded-full border-[2.5px] border-fast bg-fast/15 dark:bg-transparent" />
-            <span className="absolute left-3 h-5 w-5 rounded-full border-[2.5px] border-slow bg-slow/15 dark:bg-transparent" />
+            <span className="absolute left-0 h-5 w-5 rounded-full bg-fast ring-2 ring-surface dark:border-2 dark:border-fast dark:bg-transparent dark:ring-0" />
+            <span className="absolute left-3 h-5 w-5 rounded-full bg-slow ring-2 ring-surface dark:border-2 dark:border-slow dark:bg-transparent dark:ring-0" />
           </span>
           <span className="font-display text-2xl italic leading-none tracking-tight">
             DuetMind

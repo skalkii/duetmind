@@ -31,20 +31,19 @@
 }
 
 :root[data-theme='light'] {
-  /* Light palette — every text-on-bg pair clears 4.5:1 and accent
-     borders / dots stay legible without an alpha boost everywhere.
-     The edge token is intentionally near-black-warm so a 1px border
-     reads at any alpha down to ~/40. */
-  --color-ink: 240 234 217; /* page bg — punchier than pure cream */
-  --color-ink-deep: 218 208 178; /* recessed pill bg */
-  --color-surface: 255 253 246; /* card */
-  --color-surface-2: 232 222 192; /* card header bar */
-  --color-cream: 12 9 18; /* near-black; ~17:1 on bg */
-  --color-cream-muted: 56 48 70; /* ~9:1 — strong muted text */
-  --color-edge: 92 76 50; /* dark warm border — visible at any alpha */
-  --color-fast: 120 62 0; /* deeper amber — 6.5:1 on bg */
-  --color-slow: 58 18 140; /* deeper violet — 9.5:1 */
-  --color-coral: 144 22 52; /* deeper red — 7.4:1 */
+  /* Light palette. Page bg is a clearly tinted sand so near-white
+     surface cards + the sticky header pop against it; edge is a
+     dark warm near-black so a 1px border reads at any alpha. */
+  --color-ink: 224 213 180; /* page bg — clearly sandy */
+  --color-ink-deep: 204 191 154; /* recessed pill bg */
+  --color-surface: 252 248 235; /* card — near-white, ~18 rgb diff from ink */
+  --color-surface-2: 222 210 175; /* card header bar */
+  --color-cream: 12 9 18; /* near-black; ~17:1 on surface */
+  --color-cream-muted: 56 48 70; /* ~9:1 */
+  --color-edge: 92 76 50; /* dark warm border */
+  --color-fast: 120 62 0; /* deep amber */
+  --color-slow: 58 18 140; /* deep violet */
+  --color-coral: 144 22 52; /* deep red */
   color-scheme: light;
 }
 
