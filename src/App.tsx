@@ -1,6 +1,4 @@
-import { MicButton } from './components/MicButton'
-import { SpeakBox } from './components/SpeakBox'
-import { TranscriptView } from './components/TranscriptView'
+import { SessionPanel } from './components/SessionPanel'
 
 export default function App() {
   return (
@@ -14,12 +12,10 @@ export default function App() {
         </p>
       </header>
 
-      <MicButton />
-      <TranscriptView />
-      <SpeakBox />
+      <SessionPanel />
 
       <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">
-        T1.3 TTS + barge-in
+        T2.3 tick orchestrator + backchannel
       </span>
     </main>
   )
