@@ -149,6 +149,33 @@ boundary without restarting the session.
 The slow brain falls back to **WASM** automatically when `navigator.gpu`
 is absent — slower first-token latency but the conversation still works.
 
+## Model picker
+
+The slow brain ships with **SmolLM2-360M-Instruct** by default. Switch via
+the dropdown in the session panel (only available before _Start session_).
+Choices:
+
+| Model                 | Approx. download | Notes              |
+| --------------------- | ---------------- | ------------------ |
+| SmolLM2-135M-Instruct | ~100 MB          | smallest + fastest |
+| SmolLM2-360M-Instruct | ~280 MB          | default            |
+| SmolLM2-1.7B-Instruct | ~1.1 GB          | smarter, slower    |
+| Qwen2.5-0.5B-Instruct | ~360 MB          | alternative family |
+| Qwen2.5-1.5B-Instruct | ~1.1 GB          | smarter, slower    |
+
+Each model is cached separately in IndexedDB after the first download.
+
+## Mode toggle
+
+A two-segment pill at the top of the session panel:
+
+- **duplex** (default) — listen, nod, interrupt; the full interaction
+  model.
+- **turn-based** — disables rules 1 (barge-in), 2 (backchannel), and the
+  fast stall. The slow brain produces the entire reply before TTS speaks
+  anything. Use this back-to-back with the duplex default to viscerally
+  hear what the project is actually demonstrating.
+
 ## Debug panel
 
 Bottom of the page. Open it to see:

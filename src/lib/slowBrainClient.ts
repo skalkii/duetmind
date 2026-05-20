@@ -36,7 +36,7 @@ export interface SlowGenerateHandle {
 }
 
 export interface SlowBrain {
-  load(): Promise<void>
+  load(modelId?: string): Promise<void>
   generate(options: SlowGenerateOptions): SlowGenerateHandle
   onProgress(cb: (pct: number) => void): () => void
   onStatus(cb: (status: SlowBrainStatus) => void): () => void
@@ -151,13 +151,17 @@ export function createSlowBrain(
   })
 
   return {
-    load(): Promise<void> {
+    load(modelId?: string): Promise<void> {
       if (status === 'ready') return Promise.resolve()
       return new Promise<void>((resolve, reject) => {
         pendingReady.push({ resolve, reject })
         if (status !== 'loading') {
           setStatus('loading')
-          worker.send({ kind: 'load' })
+          worker.send(
+            modelId !== undefined
+              ? { kind: 'load', modelId }
+              : { kind: 'load' },
+          )
         }
       })
     },

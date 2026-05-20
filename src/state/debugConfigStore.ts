@@ -13,8 +13,45 @@ import {
 
 export type InteractionMode = 'duplex' | 'turn_based'
 
+export interface ModelOption {
+  readonly id: string
+  readonly label: string
+  readonly approxDownloadMb: number
+}
+
+export const MODEL_OPTIONS: readonly ModelOption[] = [
+  {
+    id: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+    label: 'SmolLM2 · 135M (fastest)',
+    approxDownloadMb: 100,
+  },
+  {
+    id: 'HuggingFaceTB/SmolLM2-360M-Instruct',
+    label: 'SmolLM2 · 360M (default)',
+    approxDownloadMb: 280,
+  },
+  {
+    id: 'HuggingFaceTB/SmolLM2-1.7B-Instruct',
+    label: 'SmolLM2 · 1.7B (smarter, slower)',
+    approxDownloadMb: 1100,
+  },
+  {
+    id: 'Qwen/Qwen2.5-0.5B-Instruct',
+    label: 'Qwen2.5 · 0.5B',
+    approxDownloadMb: 360,
+  },
+  {
+    id: 'Qwen/Qwen2.5-1.5B-Instruct',
+    label: 'Qwen2.5 · 1.5B',
+    approxDownloadMb: 1100,
+  },
+]
+
+export const DEFAULT_MODEL_ID = MODEL_OPTIONS[1]!.id
+
 export interface DebugConfigState {
   readonly mode: InteractionMode
+  readonly modelId: string
   readonly silenceThresholdMs: number
   readonly backchannelRate: number
   readonly bargeInEnabled: boolean
@@ -24,6 +61,7 @@ export interface DebugConfigState {
 
 export interface DebugConfigActions {
   setMode(mode: InteractionMode): void
+  setModelId(modelId: string): void
   setSilenceThresholdMs(ms: number): void
   setBackchannelRate(rate: number): void
   reset(): void
@@ -31,6 +69,7 @@ export interface DebugConfigActions {
 
 const DUPLEX: DebugConfigState = {
   mode: 'duplex',
+  modelId: DEFAULT_MODEL_ID,
   silenceThresholdMs: DEFAULT_DECISION_CONFIG.silenceThresholdMs,
   backchannelRate: DEFAULT_DECISION_CONFIG.backchannelRate,
   bargeInEnabled: true,
@@ -50,7 +89,13 @@ export const useDebugConfigStore = create<
   DebugConfigState & DebugConfigActions
 >((set) => ({
   ...DUPLEX,
-  setMode: (mode) => set(mode === 'duplex' ? DUPLEX : TURN_BASED),
+  setMode: (mode) =>
+    set((s) =>
+      mode === 'duplex'
+        ? { ...DUPLEX, modelId: s.modelId }
+        : { ...TURN_BASED, modelId: s.modelId },
+    ),
+  setModelId: (modelId) => set({ modelId }),
   setSilenceThresholdMs: (ms) => set({ silenceThresholdMs: Math.max(0, ms) }),
   setBackchannelRate: (rate) =>
     set({ backchannelRate: Math.min(1, Math.max(0, rate)) }),

@@ -25,7 +25,7 @@ import type {
 
 declare const self: DedicatedWorkerGlobalScope
 
-const MODEL_ID = 'HuggingFaceTB/SmolLM2-360M-Instruct'
+const DEFAULT_MODEL_ID = 'HuggingFaceTB/SmolLM2-360M-Instruct'
 const DEFAULT_MAX_NEW_TOKENS = 96
 
 interface PipelineLike {
@@ -55,6 +55,7 @@ interface ActiveRun {
 
 let loading: Promise<unknown> | null = null
 let generator: PipelineLike | null = null
+let loadedModelId: string | null = null
 let activeRun: ActiveRun | null = null
 
 const post = (m: SlowWorkerOutbound): void => self.postMessage(m)
@@ -65,8 +66,8 @@ const emitTerminal = (run: ActiveRun, msg: SlowWorkerOutbound): void => {
   post(msg)
 }
 
-async function load(): Promise<void> {
-  if (generator) {
+async function load(modelId: string = DEFAULT_MODEL_ID): Promise<void> {
+  if (generator && loadedModelId === modelId) {
     post({ kind: 'ready' })
     return
   }
@@ -85,8 +86,9 @@ async function load(): Promise<void> {
           }
         },
       } as unknown as Parameters<typeof pipeline>[2]
-      const pipe = await pipeline('text-generation', MODEL_ID, options)
+      const pipe = await pipeline('text-generation', modelId, options)
       generator = pipe as unknown as PipelineLike
+      loadedModelId = modelId
       post({ kind: 'ready' })
     } catch (err) {
       post({
@@ -165,7 +167,7 @@ self.addEventListener('message', (event: MessageEvent<SlowWorkerInbound>) => {
   if (!msg) return
   switch (msg.kind) {
     case 'load':
-      void load()
+      void load(msg.modelId)
       return
     case 'generate':
       void generate(msg.runId, msg.messages)

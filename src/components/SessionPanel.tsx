@@ -24,6 +24,7 @@ import type {
 } from '../types/protocol'
 import { useConversationStore } from '../state/conversationStore'
 import {
+  MODEL_OPTIONS,
   toDecisionConfig,
   useDebugConfigStore,
   type InteractionMode,
@@ -106,6 +107,8 @@ export function SessionPanel({
   const tickCount = useConversationStore((s) => s.tickCount)
   const mode = useDebugConfigStore((s) => s.mode)
   const setMode = useDebugConfigStore((s) => s.setMode)
+  const modelId = useDebugConfigStore((s) => s.modelId)
+  const setModelId = useDebugConfigStore((s) => s.setModelId)
 
   useEffect(() => {
     return () => {
@@ -159,7 +162,8 @@ export function SessionPanel({
       stt.start()
       orchestrator.start()
       wiredRef.current = { audio, stt, tts, orchestrator, slowBrain }
-      void slowBrain?.load().catch((e: unknown) => {
+      const selectedModelId = useDebugConfigStore.getState().modelId
+      void slowBrain?.load(selectedModelId).catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : 'slow brain failed to load'
         setError(msg)
       })
@@ -239,6 +243,12 @@ export function SessionPanel({
       <div className="flex flex-col gap-4 px-5 py-5">
         <ModeToggle mode={mode} onChange={setMode} />
 
+        <ModelPicker
+          value={modelId}
+          onChange={setModelId}
+          disabled={live || status === 'starting'}
+        />
+
         <div className="flex flex-wrap gap-2 font-mono text-[10px] uppercase tracking-[0.16em]">
           <Badge active={userSpeaking} label="user" hue="fast" />
           <Badge active={selfSpeaking} label="self" hue="slow" />
@@ -296,6 +306,51 @@ export function SessionPanel({
         )}
       </div>
     </section>
+  )
+}
+
+function ModelPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (id: string) => void
+  disabled: boolean
+}) {
+  const selected = MODEL_OPTIONS.find((m) => m.id === value) ?? MODEL_OPTIONS[1]
+  return (
+    <div className="flex flex-col gap-1">
+      <label
+        htmlFor="model-picker"
+        className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted"
+      >
+        slow brain model
+      </label>
+      <select
+        id="model-picker"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="cursor-pointer rounded-md border border-edge/70 bg-ink-deep/40 px-3 py-1.5 text-sm text-cream focus:border-fast/60 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {MODEL_OPTIONS.map((m) => (
+          <option key={m.id} value={m.id} className="bg-ink text-cream">
+            {m.label} (~{m.approxDownloadMb}MB)
+          </option>
+        ))}
+      </select>
+      {disabled && (
+        <p className="font-mono text-[9px] text-cream-muted">
+          end session to change model
+        </p>
+      )}
+      {!disabled && selected && (
+        <p className="font-mono text-[9px] text-cream-muted">
+          ~{selected.approxDownloadMb}MB on first load, cached after
+        </p>
+      )}
+    </div>
   )
 }
 

@@ -61,7 +61,11 @@ export interface ChatMessage {
 }
 
 export type SlowWorkerInbound =
-  | { readonly kind: 'load' }
+  | {
+      readonly kind: 'load'
+      /** Hugging Face model id. Worker falls back to its built-in default. */
+      readonly modelId?: string
+    }
   | {
       readonly kind: 'generate'
       readonly runId: string
