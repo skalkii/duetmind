@@ -20,6 +20,7 @@ function input(over: Partial<TickInput> = {}): TickInput {
     tickCount: 0,
     msSinceLastBackchannel: Number.POSITIVE_INFINITY,
     replyInFlight: false,
+    turnEndConfidence: 0,
     ...over,
   }
 }
@@ -179,6 +180,7 @@ describe('decideTick — Rule 4 (handoff_to_slow)', () => {
         selfSpeaking: true,
         slowReplyReady: true,
         replyInFlight: false,
+        turnEndConfidence: 0,
       }),
     )
     expect(d.action).toBe('silent')
@@ -209,6 +211,8 @@ describe('DEFAULT_DECISION_CONFIG', () => {
       backchannelMinGapMs: 2000,
       backchannelRate: 0.3,
       silenceThresholdMs: 700,
+      confidentTurnEndMs: 300,
+      turnEndConfidenceThreshold: 0.7,
       bargeInEnabled: true,
       backchannelEnabled: true,
       fastStallEnabled: true,
@@ -223,6 +227,46 @@ describe('DEFAULT_DECISION_CONFIG', () => {
         userTranscriptFinal: 'hi',
       }),
       { config: { silenceThresholdMs: 50 }, random: alwaysFire },
+    )
+    expect(d.action).toBe('start_fast_reply')
+  })
+})
+
+describe('decideTick — confident turn-end (rule 3a)', () => {
+  it('fires reply at 350ms when confidence >= 0.7', () => {
+    const d = decideTick(
+      input({
+        userSpeaking: false,
+        msSinceUserLastSpoke: 350,
+        userTranscriptFinal: 'what time is it',
+        turnEndConfidence: 0.8,
+      }),
+      { random: alwaysFire },
+    )
+    expect(d.action).toBe('start_fast_reply')
+  })
+
+  it('does not fire under threshold even with enough silence', () => {
+    const d = decideTick(
+      input({
+        userSpeaking: false,
+        msSinceUserLastSpoke: 350,
+        userTranscriptFinal: 'i was thinking that',
+        turnEndConfidence: 0.4,
+      }),
+    )
+    expect(d.action).toBe('silent')
+  })
+
+  it('falls back to the 700ms rule when confidence is low but silence is long', () => {
+    const d = decideTick(
+      input({
+        userSpeaking: false,
+        msSinceUserLastSpoke: 800,
+        userTranscriptFinal: 'i was thinking',
+        turnEndConfidence: 0.1,
+      }),
+      { random: alwaysFire },
     )
     expect(d.action).toBe('start_fast_reply')
   })

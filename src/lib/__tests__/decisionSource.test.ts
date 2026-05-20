@@ -23,6 +23,7 @@ function baseInput(over: Partial<TickInput> = {}): TickInput {
     tickCount: 0,
     msSinceLastBackchannel: Number.POSITIVE_INFINITY,
     replyInFlight: false,
+    turnEndConfidence: 0,
     ...over,
   }
 }

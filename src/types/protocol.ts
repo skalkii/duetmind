@@ -16,6 +16,12 @@ export interface TickInput {
   readonly tickCount: number
   readonly msSinceLastBackchannel: number
   readonly replyInFlight: boolean
+  /**
+   * Probability in [0, 1] that the user has finished their turn — supplied
+   * by the heuristic classifier in `lib/turnEndPredictor.ts`. The decision
+   * rule uses this to short-circuit the conservative silence wait.
+   */
+  readonly turnEndConfidence: number
 }
 
 export type TickAction =

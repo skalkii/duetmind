@@ -9,6 +9,7 @@
  */
 
 import { create } from 'zustand'
+import { predictTurnEnd } from '../lib/turnEndPredictor'
 import type { TickInput } from '../types/protocol'
 
 export interface Message {
@@ -172,6 +173,15 @@ export function selectTickInput(
       ? Number.POSITIVE_INFINITY
       : now - state.lastBackchannelAt
 
+  // Predict on the most-complete transcript snapshot available — when the
+  // user has paused, partial is empty and final is what STT committed; while
+  // mid-utterance, partial carries the live tail.
+  const transcriptForPrediction =
+    state.userTranscriptPartial || state.userTranscriptFinal
+  const { confidence: turnEndConfidence } = predictTurnEnd(
+    transcriptForPrediction,
+  )
+
   return {
     userSpeaking: state.userSpeaking,
     userTranscriptPartial: state.userTranscriptPartial,
@@ -184,5 +194,6 @@ export function selectTickInput(
     tickCount: state.tickCount,
     msSinceLastBackchannel,
     replyInFlight: state.replyInFlight,
+    turnEndConfidence,
   }
 }

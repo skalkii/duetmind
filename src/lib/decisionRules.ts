@@ -21,6 +21,10 @@ export interface DecisionConfig {
   readonly backchannelRate: number
   /** Silence gap after a final transcript before we kick off a reply. */
   readonly silenceThresholdMs: number
+  /** Short silence gap that's enough when the classifier is confident. */
+  readonly confidentTurnEndMs: number
+  /** Classifier confidence required to short-circuit the silence wait. */
+  readonly turnEndConfidenceThreshold: number
   /**
    * Mode gates. Flipping any of these false lets the rule engine model
    * "turn-based" behaviour for A/B comparison against the duplex default.
@@ -35,6 +39,8 @@ export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
   backchannelMinGapMs: 2000,
   backchannelRate: 0.3,
   silenceThresholdMs: 700,
+  confidentTurnEndMs: 300,
+  turnEndConfidenceThreshold: 0.7,
   bargeInEnabled: true,
   backchannelEnabled: true,
   fastStallEnabled: true,
@@ -91,6 +97,23 @@ export function decideTick(
   // boundary detection; this rule only fires when both states line up.
   if (input.selfSpeaking && input.slowReplyReady && input.replyInFlight) {
     return { action: 'handoff_to_slow' }
+  }
+
+  // Rule 3a — confident turn-end short-circuit. When the classifier is
+  // sure the user has finished (terminal punctuation, question, end
+  // phrase…), fire the reply after the short `confidentTurnEndMs` gap
+  // instead of the conservative full silence wait.
+  if (
+    !input.userSpeaking &&
+    !input.replyInFlight &&
+    input.msSinceUserLastSpoke > cfg.confidentTurnEndMs &&
+    input.userTranscriptFinal !== '' &&
+    input.turnEndConfidence >= cfg.turnEndConfidenceThreshold
+  ) {
+    return {
+      action: 'start_fast_reply',
+      phrase: pick(FAST_STALL_PHRASES, random),
+    }
   }
 
   // Rule 3 — silence gap after user committed a final transcript, no reply

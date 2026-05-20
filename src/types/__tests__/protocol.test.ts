@@ -69,6 +69,7 @@ describe('TickInput contract', () => {
       tickCount: 0,
       msSinceLastBackchannel: 0,
       replyInFlight: false,
+      turnEndConfidence: 0,
     }
     expect(input.tickCount).toBe(0)
   })
@@ -91,6 +92,7 @@ describe('Worker message contracts', () => {
         tickCount: 1,
         msSinceLastBackchannel: 0,
         replyInFlight: false,
+        turnEndConfidence: 0,
       },
     }
     const outbound: FastWorkerOutbound = {
