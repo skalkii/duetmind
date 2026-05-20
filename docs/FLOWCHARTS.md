@@ -92,9 +92,9 @@ flowchart TD
   In([TickInput + DecisionConfig])
 
   R1{"Rule 1 — barge-in<br/>userSpeaking && selfSpeaking<br/>&& bargeInEnabled?"}
-  R2{"Rule 2 — backchannel<br/>userSpeaking && >3s && cooldown OK<br/>&& random &lt; 0.3 && backchannelEnabled?"}
+  R2{"Rule 2 — backchannel<br/>userSpeaking AND speech over 3s<br/>AND cooldown OK AND random under 0.3<br/>AND backchannelEnabled?"}
   R4{"Rule 4 — handoff<br/>selfSpeaking && slowReplyReady<br/>&& replyInFlight?"}
-  R3{"Rule 3 — start reply<br/>!speaking && !replyInFlight && transcript<br/>&& (silence&gt;700ms OR (silence&gt;300ms && conf≥0.7))?"}
+  R3{"Rule 3 — start reply<br/>not speaking AND no replyInFlight<br/>AND transcript non-empty AND<br/>silence over 700ms OR (silence over 300ms<br/>AND confidence at or above 0.7)?"}
   R5{Else}
 
   A1[["interrupt_self"]]
@@ -174,31 +174,33 @@ How the perceptual budget (< 200ms) is captured.
 ```mermaid
 sequenceDiagram
   participant Mic as Microphone
-  participant Audio as audio.ts<br/>(RMS meter)
+  participant Audio as audio.ts
   participant Orch as Orchestrator
   participant Fast as Fast worker
   participant TTS as tts.ts
   participant Store as Store
+  participant UI as UI callback
 
-  Note over Mic,Store: AI is mid-reply, selfSpeaking=true
+  Note over Mic,UI: AI is mid-reply (selfSpeaking = true)
 
   Mic->>Audio: voice begins
-  Audio->>Audio: RMS &gt;= threshold
+  Audio->>Audio: RMS at or above threshold
   Audio->>Orch: onLevel(rms)
-  Orch->>Orch: bargeInArmedAt = now() ⏱
+  Orch->>Orch: bargeInArmedAt = now() (T1)
   Orch->>Store: setUserSpeaking(true, now)
 
-  Note right of Orch: next tick (≤ 200ms later)
-  Orch->>Fast: send tick input
-  Fast->>Orch: decision { interrupt_self }
+  Note right of Orch: next tick fires within 200ms
+
+  Orch->>Fast: send TickInput
+  Fast->>Orch: TickDecision interrupt_self
 
   Orch->>Orch: armed = bargeInArmedAt
   Orch->>TTS: stopAll() — synchronous
-  Orch->>Orch: stoppedAt = now() ⏱
+  Orch->>Orch: stoppedAt = now() (T2)
   Orch->>Store: setSelfSpeaking(false) + markReplyEnded
-  Orch-->>UI: onBargeInLatency(stoppedAt - armed)
+  Orch->>UI: onBargeInLatency(T2 - T1)
 
-  Note over Audio,UI: budget: stoppedAt - armed &lt; 200ms<br/>(typically 50-150ms on Apple Silicon)
+  Note over Audio,UI: Budget — T2 minus T1 stays under 200ms<br/>(typically 50 to 150ms on Apple Silicon)
 ```
 
 ---

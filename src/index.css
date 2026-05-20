@@ -32,17 +32,19 @@
 
 :root[data-theme='light'] {
   /* Light palette — every text-on-bg pair clears 4.5:1 and accent
-     borders / dots stay legible without an alpha boost everywhere. */
-  --color-ink: 245 240 224; /* page bg — slightly punchier than pure cream */
-  --color-ink-deep: 226 216 188; /* recessed pill bg */
-  --color-surface: 255 252 244; /* card */
-  --color-surface-2: 236 226 198; /* card header bar */
+     borders / dots stay legible without an alpha boost everywhere.
+     The edge token is intentionally near-black-warm so a 1px border
+     reads at any alpha down to ~/40. */
+  --color-ink: 240 234 217; /* page bg — punchier than pure cream */
+  --color-ink-deep: 218 208 178; /* recessed pill bg */
+  --color-surface: 255 253 246; /* card */
+  --color-surface-2: 232 222 192; /* card header bar */
   --color-cream: 12 9 18; /* near-black; ~17:1 on bg */
-  --color-cream-muted: 71 62 86; /* ~7.5:1 */
-  --color-edge: 152 138 104; /* strong warm-grey border (was too light) */
-  --color-fast: 138 76 0; /* deep amber — 5.4:1 on bg, visible at /70 alpha */
-  --color-slow: 72 28 161; /* deep violet — 7.6:1 */
-  --color-coral: 154 28 58; /* deep red — 6.4:1 */
+  --color-cream-muted: 56 48 70; /* ~9:1 — strong muted text */
+  --color-edge: 92 76 50; /* dark warm border — visible at any alpha */
+  --color-fast: 120 62 0; /* deeper amber — 6.5:1 on bg */
+  --color-slow: 58 18 140; /* deeper violet — 9.5:1 */
+  --color-coral: 144 22 52; /* deeper red — 7.4:1 */
   color-scheme: light;
 }
 
