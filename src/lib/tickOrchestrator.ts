@@ -64,6 +64,11 @@ export interface TickOrchestratorOptions {
   readonly speakingThreshold?: number
   readonly random?: () => number
   readonly config?: Partial<DecisionConfig>
+  /**
+   * Per-tick config getter — resolved at every tick so debug-panel sliders
+   * can move thresholds without restarting. Overrides `config` when set.
+   */
+  readonly getConfig?: () => Partial<DecisionConfig>
   readonly onTick?: (decision: TickDecision) => void
   /**
    * Fires once per barge-in: ms from the audio meter detecting the user's
@@ -87,9 +92,11 @@ export function createTickOrchestrator(
   const tickIntervalMs = options.tickIntervalMs ?? TICK_INTERVAL_MS
   const speakingThreshold = options.speakingThreshold ?? DEFAULT_SPEAKING_RMS
   const random = options.random ?? Math.random
-  const config = options.config ?? {}
+  const staticConfig = options.config ?? {}
+  const resolveConfig = (): Partial<DecisionConfig> =>
+    options.getConfig ? options.getConfig() : staticConfig
   const decisionSource =
-    deps.decisionSource ?? createInlineDecisionSource({ config, random })
+    deps.decisionSource ?? createInlineDecisionSource({ random })
   const ownsDecisionSource = !deps.decisionSource
 
   let running = false
@@ -269,7 +276,7 @@ export function createTickOrchestrator(
     const tickId = store.tickCount
     inFlightTickId = tickId
     const input = selectTickInput(deps.store.getState(), deps.now())
-    decisionSource.decide(tickId, input).then(
+    decisionSource.decide(tickId, input, resolveConfig()).then(
       (decision) => {
         if (!running) return
         inFlightTickId = -1

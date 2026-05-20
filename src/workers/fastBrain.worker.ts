@@ -7,7 +7,7 @@
  * be the transport boundary, not to host any new behavior.
  */
 
-import { decideTick } from '../lib/decisionRules'
+import { decideTick, type DecisionConfig } from '../lib/decisionRules'
 import type { FastWorkerInbound, FastWorkerOutbound } from '../types/protocol'
 
 declare const self: DedicatedWorkerGlobalScope
@@ -15,7 +15,9 @@ declare const self: DedicatedWorkerGlobalScope
 self.addEventListener('message', (event: MessageEvent<FastWorkerInbound>) => {
   const msg = event.data
   if (!msg || msg.kind !== 'tick') return
-  const decision = decideTick(msg.input)
+  const decision = decideTick(msg.input, {
+    config: (msg.configOverride ?? {}) as Partial<DecisionConfig>,
+  })
   const reply: FastWorkerOutbound = {
     kind: 'decision',
     tickId: msg.tickId,

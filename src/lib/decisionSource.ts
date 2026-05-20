@@ -7,9 +7,12 @@
  * each tick is correlated by `tickId` and stale responses are dropped — if
  * the orchestrator has already moved past the tick a response refers to,
  * we don't apply it.
+ *
+ * `decide` takes an optional `configOverride` so live-tuned thresholds
+ * (debug panel knobs) reach both inline and worker engines per tick.
  */
 
-import { decideTick, type DecideTickOptions } from './decisionRules'
+import { decideTick, type DecisionConfig } from './decisionRules'
 import type { TypedWorker } from './workerBridge'
 import type {
   FastWorkerInbound,
@@ -19,16 +22,27 @@ import type {
 } from '../types/protocol'
 
 export interface DecisionSource {
-  decide(tickId: number, input: TickInput): Promise<TickDecision>
+  decide(
+    tickId: number,
+    input: TickInput,
+    configOverride?: Partial<DecisionConfig>,
+  ): Promise<TickDecision>
   dispose(): void
 }
 
+export interface InlineDecisionOptions {
+  readonly random?: () => number
+}
+
 export function createInlineDecisionSource(
-  options: DecideTickOptions = {},
+  options: InlineDecisionOptions = {},
 ): DecisionSource {
   return {
-    async decide(_tickId, input) {
-      return decideTick(input, options)
+    async decide(_tickId, input, configOverride) {
+      return decideTick(input, {
+        ...(configOverride ? { config: configOverride } : {}),
+        ...(options.random ? { random: options.random } : {}),
+      })
     },
     dispose() {
       /* no-op */
@@ -48,7 +62,7 @@ export function createWorkerDecisionSource(
 
   const offMessage = worker.onMessage((msg) => {
     const slot = pending.get(msg.tickId)
-    if (!slot) return // stale or superseded
+    if (!slot) return
     pending.delete(msg.tickId)
     slot.resolve(msg.decision)
   })
@@ -61,10 +75,21 @@ export function createWorkerDecisionSource(
   })
 
   return {
-    decide(tickId, input) {
+    decide(tickId, input, configOverride) {
       return new Promise<TickDecision>((resolve, reject) => {
         pending.set(tickId, { resolve, reject })
-        worker.send({ kind: 'tick', tickId, input })
+        worker.send({
+          kind: 'tick',
+          tickId,
+          input,
+          ...(configOverride
+            ? {
+                configOverride: configOverride as Readonly<
+                  Record<string, number>
+                >,
+              }
+            : {}),
+        })
       })
     },
     dispose() {

@@ -1,0 +1,61 @@
+import { useConversationStore } from '../state/conversationStore'
+
+export function ConversationView() {
+  const messages = useConversationStore((s) => s.messages)
+  const slowReplyText = useConversationStore((s) => s.slowReplyText)
+  const replyInFlight = useConversationStore((s) => s.replyInFlight)
+
+  const hasContent = messages.length > 0 || (replyInFlight && slowReplyText)
+
+  if (!hasContent) {
+    return (
+      <section className="w-full max-w-lg" aria-label="Conversation transcript">
+        <p className="text-center text-xs italic text-cream-muted/60">
+          Conversation will appear here once the session starts.
+        </p>
+      </section>
+    )
+  }
+
+  return (
+    <section
+      className="flex w-full max-w-lg flex-col gap-3"
+      aria-label="Conversation transcript"
+    >
+      <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted/70">
+        conversation
+      </h2>
+      <ol className="flex flex-col gap-3">
+        {messages.map((m, i) => (
+          <li
+            key={`${m.ts}-${i}`}
+            className={`max-w-[85%] rounded-2xl border px-4 py-2.5 text-sm leading-relaxed ${
+              m.role === 'user'
+                ? 'self-end border-fast/30 bg-fast/10 text-cream'
+                : 'self-start border-slow/30 bg-slow/10 text-cream'
+            }`}
+          >
+            <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-cream-muted/60">
+              {m.role}
+              {m.source ? ` · ${m.source}` : ''}
+            </span>
+            <span className="mt-1 block font-display text-base italic">
+              {m.text}
+            </span>
+          </li>
+        ))}
+        {replyInFlight && slowReplyText && (
+          <li className="max-w-[85%] self-start rounded-2xl border border-slow/30 bg-slow/10 px-4 py-2.5 text-sm leading-relaxed text-cream">
+            <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-slow">
+              assistant · streaming
+            </span>
+            <span className="mt-1 block font-display text-base italic">
+              {slowReplyText}
+              <span className="ml-1 inline-block h-3 w-1.5 animate-pulse bg-slow align-middle" />
+            </span>
+          </li>
+        )}
+      </ol>
+    </section>
+  )
+}

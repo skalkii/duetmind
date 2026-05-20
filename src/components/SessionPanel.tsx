@@ -23,11 +23,13 @@ import type {
   SlowWorkerOutbound,
 } from '../types/protocol'
 import { useConversationStore } from '../state/conversationStore'
+import { useDebugConfigStore } from '../state/debugConfigStore'
 import {
   createSlowBrain,
   type SlowBrain,
   type SlowBrainStatus,
 } from '../lib/slowBrainClient'
+import type { TickDecision } from '../types/protocol'
 
 function createDefaultDecisionSource(): DecisionSource {
   try {
@@ -66,6 +68,8 @@ interface SessionPanelProps {
   sttFactory?: () => Stt
   ttsFactory?: () => Tts
   slowBrainFactory?: () => SlowBrain | null
+  onDecision?: (decision: TickDecision) => void
+  onBargeInLatency?: (ms: number) => void
 }
 
 interface Wired {
@@ -81,6 +85,8 @@ export function SessionPanel({
   sttFactory,
   ttsFactory,
   slowBrainFactory,
+  onDecision,
+  onBargeInLatency,
 }: SessionPanelProps) {
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +141,18 @@ export function SessionPanel({
           ...(slowBrain ? { slowBrain } : {}),
         },
         {
-          onBargeInLatency: (ms) => setBargeMs(ms),
+          getConfig: () => {
+            const s = useDebugConfigStore.getState()
+            return {
+              silenceThresholdMs: s.silenceThresholdMs,
+              backchannelRate: s.backchannelRate,
+            }
+          },
+          onBargeInLatency: (ms) => {
+            setBargeMs(ms)
+            onBargeInLatency?.(ms)
+          },
+          onTick: (decision) => onDecision?.(decision),
         },
       )
       await audio.start()

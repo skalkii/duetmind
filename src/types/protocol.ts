@@ -34,11 +34,18 @@ export type TickDecision =
   | { readonly action: 'handoff_to_slow' }
   | { readonly action: 'interrupt_self' }
 
-export type FastWorkerInbound = {
+export interface FastTickInbound {
   readonly kind: 'tick'
   readonly tickId: number
   readonly input: TickInput
+  /**
+   * Optional per-tick config override. The worker is stateless across ticks,
+   * so any live-tuned thresholds (debug panel knobs) ride along.
+   */
+  readonly configOverride?: Readonly<Record<string, number>>
 }
+
+export type FastWorkerInbound = FastTickInbound
 
 export type FastWorkerOutbound = {
   readonly kind: 'decision'
