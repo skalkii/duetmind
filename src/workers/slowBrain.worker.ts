@@ -107,7 +107,23 @@ async function generate(runId: string, prompt: string): Promise<void> {
   })
 
   try {
-    const messages = [{ role: 'user', content: prompt }]
+    // The orchestrator sends either a plain user-turn string or a
+    // JSON-serialised chat message array. Detect + parse.
+    let messages: Array<{ role: string; content: string }>
+    if (prompt.startsWith('[')) {
+      try {
+        const parsed: unknown = JSON.parse(prompt)
+        if (Array.isArray(parsed)) {
+          messages = parsed as Array<{ role: string; content: string }>
+        } else {
+          messages = [{ role: 'user', content: prompt }]
+        }
+      } catch {
+        messages = [{ role: 'user', content: prompt }]
+      }
+    } else {
+      messages = [{ role: 'user', content: prompt }]
+    }
     await generator(messages, {
       max_new_tokens: DEFAULT_MAX_NEW_TOKENS,
       do_sample: false,

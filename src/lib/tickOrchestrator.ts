@@ -22,6 +22,8 @@ import type { DecisionConfig } from './decisionRules'
 import type { AudioMeter } from './audio'
 import type { Stt } from './stt'
 import type { Tts } from './tts'
+import type { SlowBrain, SlowGenerateHandle } from './slowBrainClient'
+import { buildChatMessages, isSentenceBoundary } from './prompt'
 import {
   selectTickInput,
   type ConversationStore,
@@ -53,6 +55,8 @@ export interface TickOrchestratorDeps {
   }
   /** Source of TickDecisions — defaults to inline `decideTick`. */
   decisionSource?: DecisionSource
+  /** Optional slow brain — when present, fast replies kick off generation. */
+  slowBrain?: Pick<SlowBrain, 'generate'>
 }
 
 export interface TickOrchestratorOptions {
@@ -85,7 +89,53 @@ export function createTickOrchestrator(
   let running = false
   let timer: ReturnType<typeof setInterval> | null = null
   let inFlightTickId = -1
+  let activeGen: SlowGenerateHandle | null = null
   const unsubs: Array<() => void> = []
+
+  const stopActiveGen = (): void => {
+    if (activeGen) {
+      activeGen.abort()
+      activeGen = null
+    }
+  }
+
+  const startSlowGen = (): void => {
+    if (!deps.slowBrain) return
+    const store = deps.store.getState()
+    const messages = buildChatMessages(
+      store.messages,
+      store.userTranscriptFinal,
+    )
+    // The slow worker applies the model's own chat template, so we send the
+    // full chat-message array as the "prompt" payload.
+    const promptPayload = JSON.stringify(messages)
+    activeGen = deps.slowBrain.generate({
+      prompt: promptPayload,
+      onToken: (text) => {
+        deps.store.getState().appendSlowReply(text)
+        // Re-read after the mutation — Zustand returns a fresh snapshot.
+        const after = deps.store.getState()
+        if (
+          !after.slowReplyReady &&
+          isSentenceBoundary(after.slowReplyText ?? '')
+        ) {
+          after.markSlowReplyReady()
+        }
+      },
+      onDone: () => {
+        activeGen = null
+        const s = deps.store.getState()
+        // Ensure ready flips even if model never produced a sentence end.
+        if (!s.slowReplyReady && s.slowReplyText) s.markSlowReplyReady()
+      },
+      onAborted: () => {
+        activeGen = null
+      },
+      onError: () => {
+        activeGen = null
+      },
+    })
+  }
 
   const handlers: ActionHandlerMap = {
     silent: () => undefined,
@@ -99,10 +149,13 @@ export function createTickOrchestrator(
       store.markReplyStarted()
       store.setSelfSpeaking(true)
       void deps.tts.speak(d.phrase)
+      // Kick off the slow brain in parallel — it streams tokens into the
+      // store while the fast stall is being spoken, ready to take over at
+      // the first sentence boundary (rule 4).
+      startSlowGen()
     },
     request_slow_reply: () => {
-      // T4.3 wires the slow worker. For now this action is unreachable
-      // from the current rule set — kept for protocol completeness.
+      startSlowGen()
     },
     handoff_to_slow: () => {
       const store = deps.store.getState()
@@ -113,9 +166,11 @@ export function createTickOrchestrator(
     },
     interrupt_self: () => {
       deps.tts.stopAll()
+      stopActiveGen()
       const store = deps.store.getState()
       store.setSelfSpeaking(false)
       store.markReplyEnded()
+      store.clearSlowReply()
     },
   }
 
@@ -206,6 +261,7 @@ export function createTickOrchestrator(
       timer = null
       for (const off of unsubs) off()
       unsubs.length = 0
+      stopActiveGen()
       if (ownsDecisionSource) decisionSource.dispose()
     },
     get isRunning(): boolean {

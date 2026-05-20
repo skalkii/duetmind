@@ -1,19 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="duet" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#ffb86b" />
+      <stop offset="55%" stop-color="#f4a3c4" />
+      <stop offset="100%" stop-color="#b083ff" />
+    </linearGradient>
+  </defs>
   <rect width="64" height="64" rx="14" fill="#0d0b14" />
-  <circle
-    cx="25"
-    cy="32"
-    r="14"
+  <path
+    d="M 14 32
+       C 14 21, 26 21, 32 32
+       C 38 43, 50 43, 50 32
+       C 50 21, 38 21, 32 32
+       C 26 43, 14 43, 14 32 Z"
     fill="none"
-    stroke="#ffb86b"
-    stroke-width="2.6"
-  />
-  <circle
-    cx="39"
-    cy="32"
-    r="14"
-    fill="none"
-    stroke="#b083ff"
-    stroke-width="2.6"
+    stroke="url(#duet)"
+    stroke-width="3.4"
+    stroke-linejoin="round"
   />
 </svg>

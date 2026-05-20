@@ -130,6 +130,7 @@ export function SessionPanel({
           clearInterval: (h) => clearInterval(h),
         },
         decisionSource,
+        ...(slowBrain ? { slowBrain } : {}),
       })
       await audio.start()
       stt.start()
