@@ -376,7 +376,7 @@ function ModeToggle({
     <div
       role="radiogroup"
       aria-label="Interaction mode"
-      className="flex w-full overflow-hidden rounded-full border border-edge/70 bg-ink-deep/40 p-0.5 font-mono text-[10px] uppercase tracking-[0.16em]"
+      className="flex w-full overflow-hidden rounded-full border border-edge/70 bg-ink-deep/40 p-1 font-mono text-[10px] uppercase tracking-[0.16em]"
     >
       {opts.map((o) => {
         const active = o.value === mode
@@ -388,10 +388,10 @@ function ModeToggle({
             aria-checked={active}
             onClick={() => onChange(o.value)}
             title={o.hint}
-            className={`flex-1 rounded-full px-3 py-1.5 transition ${
+            className={`flex-1 cursor-pointer rounded-full px-3 py-1.5 font-medium transition ${
               active
-                ? 'bg-fast/20 text-fast'
-                : 'text-cream-muted hover:text-cream'
+                ? 'bg-fast text-ink shadow-[0_1px_0_rgba(0,0,0,0.15)]'
+                : 'text-cream-muted hover:bg-edge/30 hover:text-cream'
             }`}
           >
             {o.label}

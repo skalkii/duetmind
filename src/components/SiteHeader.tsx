@@ -1,7 +1,9 @@
+import { ThemeToggle } from './ThemeToggle'
+
 export function SiteHeader() {
   return (
-    <header className="border-b border-edge/60">
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-6 py-5">
+    <header className="sticky top-0 z-40 border-b border-edge/60 bg-ink/80 backdrop-blur supports-[backdrop-filter]:bg-ink/60">
+      <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-5 py-3 sm:px-6 sm:py-4">
         <a
           href="/"
           className="group flex items-center gap-3 text-cream no-underline"
@@ -18,9 +20,12 @@ export function SiteHeader() {
             DuetMind
           </span>
         </a>
-        <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted sm:inline">
-          interaction model · v0.1
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="hidden font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted sm:inline">
+            interaction model · v0.1
+          </span>
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )
