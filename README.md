@@ -1,18 +1,19 @@
 # DuetMind
 
-> A browser-native experiment in the _interaction model_ architecture —
-> two brains, one tick loop. No backend. No API keys. Runs offline after
-> the first model download.
+> A small experiment in what a voice AI feels like when it can listen,
+> nod, and interrupt — all at the same time, just like a real
+> conversation. **Runs entirely in your browser.** No accounts, no API
+> keys, no servers.
 
-[![tests](https://img.shields.io/badge/tests-129%20passing-success)](#)
-[![bundle](https://img.shields.io/badge/main%20bundle-69kB%20gz-blue)](#)
+[![tests](https://img.shields.io/badge/tests-135%20passing-success)](#)
+[![bundle](https://img.shields.io/badge/main%20bundle-71kB%20gz-blue)](#)
+[![offline](https://img.shields.io/badge/works%20offline-after%20first%20load-violet)](#)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](#)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      MAIN THREAD (UI)                       │
-│  Web Speech STT · speechSynthesis TTS · audio meter         │
-│  200ms tick orchestrator · Zustand store                    │
+│  speech-in · speech-out · audio meter · 200ms tick loop     │
 └──────┬──────────────────────┬───────────────────────────────┘
        │                      │
        ▼                      ▼
@@ -20,123 +21,170 @@
 │   FAST BRAIN     │  │           SLOW BRAIN                 │
 │   (Web Worker)   │  │   (Web Worker + Transformers.js)     │
 │                  │  │                                      │
-│   decideTick:    │  │   SmolLM2-360M-Instruct on WebGPU    │
-│   when to listen │  │   (or WASM fallback)                 │
-│   when to nod    │  │                                      │
-│   when to talk   │  │   Streaming tokens, abortable        │
-│   when to stop   │  │                                      │
+│   decides WHEN   │  │   decides WHAT                       │
+│   to listen,     │  │   to say.                            │
+│   nod, talk,     │  │                                      │
+│   or stop.       │  │   SmolLM2 / Qwen2.5 on WebGPU.       │
 └──────────────────┘  └──────────────────────────────────────┘
 ```
 
-## The thesis
+---
 
-Most voice AIs are a pipeline: wait → transcribe → think → reply. DuetMind
-is one connected loop that listens-and-thinks-and-talks at once. The
-**fast brain** is a pure rule engine that decides _when_ to act every
-200ms. The **slow brain** is a 360M-parameter language model that decides
-_what_ to say. They run in separate Web Workers so the UI never freezes.
+## What is this?
 
-The point is the _interaction texture_ — backchannels, barge-in, the
-fast→slow handoff at a sentence boundary — not the model's intelligence.
-A non-technical user should be able to describe what feels different
-after a 2-minute demo. See [`VALIDATION.md`](./VALIDATION.md) for the
-six acceptance criteria.
+Today's voice AIs work like a relay: you talk → it listens → you stop
+→ it transcribes → it thinks → it talks back. One thing at a time.
 
-## Try it
+DuetMind tries something different. It does all of those things **at
+once**:
+
+- It can say "mmhm" while you're still talking.
+- It can start replying before you've fully stopped — like a friend
+  who's eager to answer.
+- It cuts itself off the instant you start talking over it.
+- It uses one cheap, fast brain to decide _when_ to react, and a
+  slower, smarter brain (running entirely in your browser) to decide
+  _what_ to say.
+
+It will feel weird. That's the whole point. See
+[`VALIDATION.md`](./VALIDATION.md) for the six things to listen for
+when you try it.
+
+> **Heads up:** The AI is small (~360 MB). Its answers will often be
+> short, wrong, or shallow. The _interaction feel_ is what we're
+> demonstrating — not its intelligence.
+
+---
+
+## Try it in your browser
+
+### Quickest path (no install)
+
+If somebody is hosting this for you, just open the URL in **Chrome or
+Edge**, click **Start session**, and grant microphone access.
+
+The first time you start a session, it downloads a ~280 MB language
+model into your browser's storage. That's the one big download. After
+that, **everything runs offline.**
+
+### Run it locally (your own machine)
+
+If you want to host it yourself or read the code, here's the path
+assuming you've never opened a terminal before.
+
+#### 1. Install the tools
+
+You need two free things on your computer:
+
+- **Node.js** (a runtime that powers modern web tools)
+  → Download from [https://nodejs.org/](https://nodejs.org/) and pick
+  the **LTS** (Long-Term Support) version. Run the installer. Done.
+- **Git** (a tool for downloading code)
+  → Most Macs already have it. If not, the first time you type `git`
+  in a terminal it will offer to install it. On Windows, get it from
+  [https://git-scm.com/](https://git-scm.com/).
+
+#### 2. Open a terminal
+
+- **macOS:** press <kbd>⌘</kbd>+<kbd>Space</kbd>, type "Terminal", hit
+  Enter.
+- **Windows:** press the Windows key, type "PowerShell", hit Enter.
+
+#### 3. Download + start the app
+
+Paste these lines one at a time and press Enter after each:
 
 ```bash
 git clone https://github.com/skalkii/duetmind.git
 cd duetmind
 npm install
 npm run dev
-# → http://localhost:5173/
 ```
 
-Open in **Chrome or Edge**. Click _Start session_, grant mic. The first
-visit downloads the model (~200–500 MB, cached in IndexedDB). Subsequent
-visits are instant.
-
-## Scripts
-
-| script                  | what it does                  |
-| ----------------------- | ----------------------------- |
-| `npm run dev`           | Vite dev server with HMR      |
-| `npm run build`         | `tsc -b && vite build`        |
-| `npm test`              | Vitest run (129 tests)        |
-| `npm run test:watch`    | Vitest watch mode             |
-| `npm run test:coverage` | Coverage report (v8)          |
-| `npm run typecheck`     | TypeScript project references |
-| `npm run lint`          | ESLint flat config            |
-| `npm run format`        | Prettier write                |
-| `npm run format:check`  | Prettier check                |
-
-## File layout
+That's it. The last command will say something like:
 
 ```
-duetmind/
-├── index.html
-├── public/favicon.svg              ← amber→violet lemniscate
-├── src/
-│   ├── App.tsx                     ← layout
-│   ├── components/
-│   │   ├── SiteHeader.tsx
-│   │   ├── SiteFooter.tsx
-│   │   ├── SessionPanel.tsx        ← one-button session control
-│   │   ├── ConversationView.tsx    ← live transcript + history
-│   │   └── DebugPanel.tsx          ← live config sliders
-│   ├── lib/
-│   │   ├── audio.ts                ← mic + RMS meter
-│   │   ├── stt.ts                  ← Web Speech wrapper
-│   │   ├── tts.ts                  ← speechSynthesis + barge-in
-│   │   ├── decisionRules.ts        ← pure rule engine (5 rules)
-│   │   ├── decisionSource.ts       ← inline + worker variants
-│   │   ├── tickOrchestrator.ts     ← 200ms loop, state machine
-│   │   ├── slowBrainClient.ts      ← typed slow-worker handle
-│   │   ├── workerBridge.ts         ← typed postMessage adapter
-│   │   ├── prompt.ts               ← chat-message builder
-│   │   └── useStt.ts               ← React hook over stt.ts
-│   ├── state/
-│   │   ├── conversationStore.ts    ← Zustand: messages, edges
-│   │   └── debugConfigStore.ts     ← live-tunable thresholds
-│   ├── types/protocol.ts           ← wire-protocol types
-│   └── workers/
-│       ├── fastBrain.worker.ts     ← decideTick in a worker
-│       └── slowBrain.worker.ts     ← Transformers.js pipeline
-└── VALIDATION.md                   ← spec acceptance recipes
+  ➜  Local:   http://localhost:5173/
 ```
 
-## The five rules
+Open that URL in **Chrome or Edge**.
 
-Implemented in [`src/lib/decisionRules.ts`](./src/lib/decisionRules.ts) as
-a single pure function `decideTick(input, options): TickDecision`. Evaluated
-top-down — earlier rules dominate.
+#### 4. Press Start session
 
-| #   | When                                                                        | Action                                                                           |
-| --- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 1   | user is speaking AND we're speaking                                         | **interrupt_self** (barge-in)                                                    |
-| 2   | user has been speaking > 3s AND last backchannel > 2s ago AND random < 0.3  | **backchannel** ("mmhm", "right", …)                                             |
-| 3   | user just paused > 700ms AND has a final transcript AND no reply in flight  | **start_fast_reply** ("Let me think about that.") + parallel slow-brain dispatch |
-| 4   | self is speaking the fast stall AND slow reply is ready AND reply in flight | **handoff_to_slow** (queued at TTS sentence boundary)                            |
-| 5   | otherwise                                                                   | **silent**                                                                       |
+The browser will ask for microphone permission. Click **Allow**.
 
-## The 200ms tick
+You'll see a violet progress bar download the AI model. Wait a minute
+or two on the first visit; after that, the model is cached and
+subsequent sessions start in seconds.
 
-`tickOrchestrator.ts` runs an interval. Each tick:
+Talk to it. Pause occasionally. Try interrupting it mid-sentence. Read
+the [`VALIDATION.md`](./VALIDATION.md) checklist while you do.
 
-1. snapshots `TickInput` from the Zustand store (with timestamp-derived deltas)
-2. asks the **decision source** (worker or inline) for a `TickDecision`
-3. dispatches the decision through an exhaustive action map
+To stop it: press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal.
 
-Decision source is injectable — production uses
-`createWorkerDecisionSource` wrapping `fastBrain.worker.ts`; tests use
-`createInlineDecisionSource`. Both share the same `decideTick`
-implementation (DRY).
+---
 
-Per-tick config (debug-panel sliders) rides along on the message via
-`FastTickInbound.configOverride`, so live tuning works across the worker
-boundary without restarting the session.
+## What to try once it's running
 
-## Browser support
+| Test                                   | What you should hear                                            |
+| -------------------------------------- | --------------------------------------------------------------- |
+| Speak continuously for 5+ seconds      | A casual "mmhm" / "right" / "uh-huh" while you're still talking |
+| Ask "what time is it?" then stop       | A quick stall ("Let me think about that…") then a full answer   |
+| Interrupt the AI mid-reply             | Audio cuts off within a fraction of a second                    |
+| End session, refresh, start again      | `slow • ready` lights up immediately — no re-download           |
+| DevTools → Network → Offline → refresh | Everything still works                                          |
+
+There's a **mode toggle** at the top of the session panel — flip it to
+**turn-based** to hear the same AI without backchannels, without
+barge-in, and without the early stall. Switching back and forth makes
+the difference obvious.
+
+There's also a **debug panel** at the bottom — open it to see live
+metrics and adjust the thresholds (how long the AI waits before
+replying, how often it backchannels) on the fly.
+
+---
+
+## I want to read the code
+
+- **What lives where:** [`docs/STRUCTURE.md`](./docs/STRUCTURE.md)
+- **How the pieces flow together (diagrams):** [`docs/FLOWCHARTS.md`](./docs/FLOWCHARTS.md)
+- **Six acceptance criteria + manual recipes:** [`VALIDATION.md`](./VALIDATION.md)
+
+### Scripts
+
+| script                  | what it does                    |
+| ----------------------- | ------------------------------- |
+| `npm run dev`           | Vite dev server with hot reload |
+| `npm run build`         | Production bundle               |
+| `npm test`              | Run all 135 tests               |
+| `npm run test:watch`    | Tests in watch mode             |
+| `npm run test:coverage` | v8 coverage report              |
+| `npm run typecheck`     | TypeScript project references   |
+| `npm run lint`          | ESLint flat config              |
+| `npm run format`        | Prettier write                  |
+
+### The five decision rules
+
+The fast brain is [`src/lib/decisionRules.ts`](./src/lib/decisionRules.ts)
+— a single pure function evaluated every 200ms. Rules are checked
+top-down; earlier ones dominate.
+
+| #   | When                                                                                                                             | Action                                                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| 1   | user is speaking AND we're speaking                                                                                              | **interrupt_self** (barge-in)                         |
+| 2   | user has been speaking > 3s AND last backchannel > 2s ago AND random < 0.3                                                       | **backchannel** ("mmhm", "right", …)                  |
+| 3   | user paused AND has a final transcript AND no reply yet AND (silence > 700ms OR (silence > 300ms AND turn-end confidence ≥ 0.7)) | **start_fast_reply** + parallel slow-brain dispatch   |
+| 4   | self speaking the fast stall AND slow reply is ready AND reply in flight                                                         | **handoff_to_slow** (queued at TTS sentence boundary) |
+| 5   | otherwise                                                                                                                        | **silent**                                            |
+
+The turn-end confidence is computed by
+[`src/lib/turnEndPredictor.ts`](./src/lib/turnEndPredictor.ts) — a
+heuristic stand-in for what would otherwise be a tiny classifier
+model. Signals: terminal punctuation, common end phrases, question
+opener + question mark, sentence length.
+
+### Browser support
 
 | Browser     | STT     | TTS | WebGPU  | Status                   |
 | ----------- | ------- | --- | ------- | ------------------------ |
@@ -146,81 +194,57 @@ boundary without restarting the session.
 | Safari      | partial | ✓   | partial | not supported            |
 | iOS Safari  | —       | ✓   | —       | unsupported by design    |
 
-The slow brain falls back to **WASM** automatically when `navigator.gpu`
-is absent — slower first-token latency but the conversation still works.
+The slow brain falls back to **WASM** automatically when WebGPU isn't
+available — slower first-token latency but the conversation still
+works.
 
-## Model picker
+### Model picker
 
-The slow brain ships with **SmolLM2-360M-Instruct** by default. Switch via
-the dropdown in the session panel (only available before _Start session_).
-Choices:
+Default is **SmolLM2-360M-Instruct** (~280 MB). Switch via the
+dropdown in the session panel (only available before _Start session_).
+Choices range from 100 MB (SmolLM2-135M) up to 1.1 GB (Qwen2.5-1.5B).
+Each model is cached separately in IndexedDB.
 
-| Model                 | Approx. download | Notes              |
-| --------------------- | ---------------- | ------------------ |
-| SmolLM2-135M-Instruct | ~100 MB          | smallest + fastest |
-| SmolLM2-360M-Instruct | ~280 MB          | default            |
-| SmolLM2-1.7B-Instruct | ~1.1 GB          | smarter, slower    |
-| Qwen2.5-0.5B-Instruct | ~360 MB          | alternative family |
-| Qwen2.5-1.5B-Instruct | ~1.1 GB          | smarter, slower    |
+### Tech stack
 
-Each model is cached separately in IndexedDB after the first download.
-
-## Mode toggle
-
-A two-segment pill at the top of the session panel:
-
-- **duplex** (default) — listen, nod, interrupt; the full interaction
-  model.
-- **turn-based** — disables rules 1 (barge-in), 2 (backchannel), and the
-  fast stall. The slow brain produces the entire reply before TTS speaks
-  anything. Use this back-to-back with the duplex default to viscerally
-  hear what the project is actually demonstrating.
-
-## Debug panel
-
-Bottom of the page. Open it to see:
-
-- **tick count** — every 200ms increment
-- **last decision** — what the rule engine picked
-- **barge ms** — most recent barge-in latency (target < 200ms, amber/coral coded)
-- **slow buffer** — chars accumulated in the streaming slow reply
-
-Two sliders:
-
-- **silence threshold** (100–2000ms) — how long the user has to pause before a fast reply starts
-- **backchannel rate** (0–1) — probability per tick of a "mmhm" once eligible
-
-Reset returns to spec defaults from `DEFAULT_DECISION_CONFIG`.
-
-## Tech stack
-
-- **Vite 8** + **React 19** + **TypeScript 6** (strict, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
-- **Zustand 5** for store
+- **Vite 8** + **React 19** + **TypeScript 6** (strict +
+  `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`)
+- **Zustand 5** for state
 - **@huggingface/transformers v4** for the slow brain (WebGPU + WASM)
 - **Web Speech API** for STT + **speechSynthesis** for TTS
 - **Vitest 4** + **@testing-library/react** + **jsdom** for tests
-- **Tailwind CSS v3** + **Instrument Serif** + **Geist** + **Geist Mono**
+- **Tailwind CSS v3** + self-hosted **Instrument Serif** / **Geist** /
+  **Geist Mono** via `@fontsource`
 
-No backend. No external API calls beyond the initial model download from
-the Hugging Face CDN.
+No backend. No external runtime dependencies after the model download.
 
-## Architecture principles
+### Architecture principles
 
-- **SRP** — one concern per file (`audio.ts`, `stt.ts`, `tts.ts`, …)
-- **OCP** — `DecisionSource` interface lets the rule engine swap between inline + worker without a single call-site change
-- **DIP** — orchestrator takes injected `store / audio / stt / tts / scheduler / now / random / decisionSource / slowBrain`; tests pass fakes
-- **DRY** — `decideTick` lives in one module; both worker and inline source import it
-- **No premature abstraction** — no `VoiceProvider` plugin layer until a second voice engine exists
+- **SRP** — one concern per file
+- **OCP** — `DecisionSource` interface lets the rule engine swap
+  between inline + worker without a call-site change
+- **DIP** — orchestrator takes injected `store / audio / stt / tts /
+scheduler / now / random / decisionSource / slowBrain`; tests pass
+  fakes
+- **DRY** — `decideTick` lives in one module; both worker and inline
+  source import it
+- **No premature abstraction** — no plugin layer until a second
+  concrete impl exists
+
+---
 
 ## Inspiration
 
 Thinking Machines Lab's
 [Interaction Models](https://thinkingmachines.ai/blog/interaction-models/)
-post argued that today's voice AIs are bolted-together hacks and proposed
-building this as one unified system. Their model is 276 B parameters and
-runs on a server farm. **DuetMind is a tiny, free, browser-based proof
-that the architecture — not the model size — is what makes this approach
-interesting.**
+post argued that today's voice AIs are bolted-together hacks and
+proposed building this as one unified system. Their model is 276 B
+parameters and runs on a server farm.
+
+**DuetMind is a tiny, free, browser-based proof that the architecture
+— not the model size — is what makes this approach interesting.**
+
+---
 
 ## License
 
