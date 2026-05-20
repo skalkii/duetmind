@@ -140,11 +140,14 @@ describe('createSlowBrain — generate()', () => {
   it('sends a generate message with a unique runId', () => {
     const w = makeFakeSlow()
     const sb = createSlowBrain(w)
-    const h = sb.generate({ prompt: 'hi', onToken: () => undefined })
+    const h = sb.generate({
+      messages: [{ role: 'user', content: 'hi' }],
+      onToken: () => undefined,
+    })
     expect(w.sent[0]).toEqual({
       kind: 'generate',
       runId: h.runId,
-      prompt: 'hi',
+      messages: [{ role: 'user', content: 'hi' }],
     })
   })
 
@@ -153,7 +156,7 @@ describe('createSlowBrain — generate()', () => {
     const sb = createSlowBrain(w)
     const tokens: string[] = []
     const h = sb.generate({
-      prompt: 'hi',
+      messages: [{ role: 'user', content: 'hi' }],
       onToken: (t) => tokens.push(t),
     })
     w.emit({ kind: 'token', runId: h.runId, text: 'Hello' })
@@ -165,7 +168,10 @@ describe('createSlowBrain — generate()', () => {
     const w = makeFakeSlow()
     const sb = createSlowBrain(w)
     const tokens: string[] = []
-    sb.generate({ prompt: 'hi', onToken: (t) => tokens.push(t) })
+    sb.generate({
+      messages: [{ role: 'user', content: 'hi' }],
+      onToken: (t) => tokens.push(t),
+    })
     w.emit({ kind: 'token', runId: 'not-my-run', text: 'noise' })
     expect(tokens).toEqual([])
   })
@@ -176,7 +182,7 @@ describe('createSlowBrain — generate()', () => {
     const tokens: string[] = []
     const onDone = vi.fn()
     const h = sb.generate({
-      prompt: 'hi',
+      messages: [{ role: 'user', content: 'hi' }],
       onToken: (t) => tokens.push(t),
       onDone,
     })
@@ -191,7 +197,10 @@ describe('createSlowBrain — generate()', () => {
     const w = makeFakeSlow()
     const sb = createSlowBrain(w)
     const onAborted = vi.fn()
-    const h = sb.generate({ prompt: 'hi', onAborted })
+    const h = sb.generate({
+      messages: [{ role: 'user', content: 'hi' }],
+      onAborted,
+    })
     h.abort()
     expect(w.sent[1]).toEqual({ kind: 'abort', runId: h.runId })
     w.emit({ kind: 'aborted', runId: h.runId })
@@ -201,7 +210,7 @@ describe('createSlowBrain — generate()', () => {
   it('abort() after completion is a no-op', () => {
     const w = makeFakeSlow()
     const sb = createSlowBrain(w)
-    const h = sb.generate({ prompt: 'hi' })
+    const h = sb.generate({ messages: [{ role: 'user', content: 'hi' }] })
     w.emit({ kind: 'done', runId: h.runId })
     h.abort()
     expect(w.sent.filter((m) => m.kind === 'abort')).toEqual([])
@@ -212,8 +221,14 @@ describe('createSlowBrain — generate()', () => {
     const sb = createSlowBrain(w)
     const onErrorA = vi.fn()
     const onErrorB = vi.fn()
-    sb.generate({ prompt: 'one', onError: onErrorA })
-    sb.generate({ prompt: 'two', onError: onErrorB })
+    sb.generate({
+      messages: [{ role: 'user', content: 'one' }],
+      onError: onErrorA,
+    })
+    sb.generate({
+      messages: [{ role: 'user', content: 'two' }],
+      onError: onErrorB,
+    })
     w.emit({ kind: 'error', message: 'OOM' })
     expect(onErrorA).toHaveBeenCalledWith('OOM')
     expect(onErrorB).toHaveBeenCalledWith('OOM')
@@ -223,7 +238,7 @@ describe('createSlowBrain — generate()', () => {
     const w = makeFakeSlow()
     const sb = createSlowBrain(w)
     const onError = vi.fn()
-    sb.generate({ prompt: 'hi', onError })
+    sb.generate({ messages: [{ role: 'user', content: 'hi' }], onError })
     sb.terminate()
     expect(onError).toHaveBeenCalledWith('slow brain terminated')
   })

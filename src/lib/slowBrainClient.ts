@@ -13,12 +13,17 @@
  */
 
 import type { TypedWorker } from './workerBridge'
-import type { SlowWorkerInbound, SlowWorkerOutbound } from '../types/protocol'
+import type {
+  ChatMessage,
+  SlowWorkerInbound,
+  SlowWorkerOutbound,
+} from '../types/protocol'
 
 export type SlowBrainStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export interface SlowGenerateOptions {
-  readonly prompt: string
+  /** Structured chat messages. Worker applies the model's chat template. */
+  readonly messages: readonly ChatMessage[]
   onToken?(text: string): void
   onDone?(): void
   onAborted?(): void
@@ -117,29 +122,32 @@ export function createSlowBrain(
         run?.options.onAborted?.()
         return
       }
-      case 'error':
+      case 'error': {
         error = msg.message
-        // Errors don't carry a runId, so route them to all active runs and
-        // also reject any pending load — whichever was waiting deserves the
-        // signal. Status flips iff there is nothing else in flight.
-        if (activeRuns.size > 0) {
+        // Always flip status — a mid-generation error means the worker is
+        // in an unknown state, and silently leaving it on `ready` would
+        // mislead the UI and let subsequent loads resolve immediately.
+        setStatus('error')
+        // Scoped error (carries runId) → fail just that run. Otherwise
+        // fail everything in flight.
+        if (msg.runId !== undefined) {
+          const run = activeRuns.get(msg.runId)
+          activeRuns.delete(msg.runId)
+          run?.options.onError?.(msg.message)
+        } else if (activeRuns.size > 0) {
           failAllRuns(msg.message)
         }
-        if (pendingReady.length > 0) {
-          setStatus('error')
-          settleReady(new Error(msg.message))
-        }
+        settleReady(new Error(msg.message))
         return
+      }
     }
   })
 
   worker.onError((event) => {
     error = event.message ?? 'slow worker errored'
+    setStatus('error')
     if (activeRuns.size > 0) failAllRuns(error)
-    if (pendingReady.length > 0) {
-      setStatus('error')
-      settleReady(new Error(error))
-    }
+    settleReady(new Error(error))
   })
 
   return {
@@ -156,7 +164,11 @@ export function createSlowBrain(
     generate(options): SlowGenerateHandle {
       const runId = makeRunId()
       activeRuns.set(runId, { options })
-      worker.send({ kind: 'generate', runId, prompt: options.prompt })
+      worker.send({
+        kind: 'generate',
+        runId,
+        messages: options.messages,
+      })
       return {
         runId,
         abort: (): void => {

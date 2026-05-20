@@ -12,9 +12,19 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:text-cream focus:outline focus:outline-2 focus:outline-fast"
+      >
+        Skip to content
+      </a>
       <SiteHeader />
 
-      <main className="flex flex-1 flex-col items-center justify-start px-6 py-10">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="flex flex-1 flex-col items-center justify-start px-6 py-10"
+      >
         <div className="flex w-full max-w-xl flex-col items-center gap-8 text-center">
           <div className="space-y-3">
             <h1 className="font-display text-5xl italic leading-[1.05] tracking-tight text-cream">

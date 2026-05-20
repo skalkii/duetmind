@@ -6,8 +6,10 @@
  * falls back to WASM so the app keeps working on machines without WebGPU.
  *
  * Generation streams tokens via a TextStreamer and is cancellable via an
- * InterruptableStoppingCriteria — the orchestrator's `interrupt_self`
- * action will pull the abort lever when the user barges in.
+ * InterruptableStoppingCriteria. Each run is tracked as its own object so
+ * a pre-emption (new generate while one is in flight) emits exactly one
+ * terminal event (`aborted` or `error`) for the old run — never zero,
+ * never two.
  */
 
 import {
@@ -15,7 +17,11 @@ import {
   TextStreamer,
   InterruptableStoppingCriteria,
 } from '@huggingface/transformers'
-import type { SlowWorkerInbound, SlowWorkerOutbound } from '../types/protocol'
+import type {
+  ChatMessage,
+  SlowWorkerInbound,
+  SlowWorkerOutbound,
+} from '../types/protocol'
 
 declare const self: DedicatedWorkerGlobalScope
 
@@ -41,12 +47,23 @@ interface ProgressEvent {
   progress?: number
 }
 
+interface ActiveRun {
+  readonly runId: string
+  readonly stopper: InterruptableStoppingCriteria
+  emittedTerminal: boolean
+}
+
 let loading: Promise<unknown> | null = null
 let generator: PipelineLike | null = null
-let activeRunId: string | null = null
-let stopper: InterruptableStoppingCriteria | null = null
+let activeRun: ActiveRun | null = null
 
 const post = (m: SlowWorkerOutbound): void => self.postMessage(m)
+
+const emitTerminal = (run: ActiveRun, msg: SlowWorkerOutbound): void => {
+  if (run.emittedTerminal) return
+  run.emittedTerminal = true
+  post(msg)
+}
 
 async function load(): Promise<void> {
   if (generator) {
@@ -83,74 +100,63 @@ async function load(): Promise<void> {
   await loading
 }
 
-async function generate(runId: string, prompt: string): Promise<void> {
+async function generate(
+  runId: string,
+  messages: readonly ChatMessage[],
+): Promise<void> {
   if (!generator) {
-    post({ kind: 'error', message: 'model not loaded' })
+    post({ kind: 'error', message: 'model not loaded', runId })
     return
   }
-  // Pre-empt any in-flight generation. Old run will emit `aborted` once the
-  // stopper trips inside the model loop.
-  if (activeRunId && stopper) stopper.interrupt()
+  // Pre-empt any in-flight run deterministically: interrupt + emit its
+  // terminal event right now, before the old generator loop unwinds. The
+  // old run's tail no-ops because emittedTerminal is already true.
+  if (activeRun) {
+    activeRun.stopper.interrupt()
+    emitTerminal(activeRun, { kind: 'aborted', runId: activeRun.runId })
+  }
 
-  activeRunId = runId
-  const localStopper = new InterruptableStoppingCriteria()
-  stopper = localStopper
+  const stopper = new InterruptableStoppingCriteria()
+  const myRun: ActiveRun = { runId, stopper, emittedTerminal: false }
+  activeRun = myRun
 
   const streamer = new TextStreamer(generator.tokenizer, {
     skip_prompt: true,
     skip_special_tokens: true,
     callback_function: (text: string) => {
-      if (activeRunId !== runId) return
+      if (activeRun !== myRun) return
       if (!text) return
       post({ kind: 'token', runId, text })
     },
   })
 
   try {
-    // The orchestrator sends either a plain user-turn string or a
-    // JSON-serialised chat message array. Detect + parse.
-    let messages: Array<{ role: string; content: string }>
-    if (prompt.startsWith('[')) {
-      try {
-        const parsed: unknown = JSON.parse(prompt)
-        if (Array.isArray(parsed)) {
-          messages = parsed as Array<{ role: string; content: string }>
-        } else {
-          messages = [{ role: 'user', content: prompt }]
-        }
-      } catch {
-        messages = [{ role: 'user', content: prompt }]
-      }
-    } else {
-      messages = [{ role: 'user', content: prompt }]
-    }
     await generator(messages, {
       max_new_tokens: DEFAULT_MAX_NEW_TOKENS,
       do_sample: false,
       streamer,
-      stopping_criteria: localStopper,
+      stopping_criteria: stopper,
     })
-    if (localStopper.interrupted) {
-      post({ kind: 'aborted', runId })
-    } else {
-      post({ kind: 'done', runId })
-    }
+    emitTerminal(
+      myRun,
+      stopper.interrupted
+        ? { kind: 'aborted', runId }
+        : { kind: 'done', runId },
+    )
   } catch (err) {
-    post({
+    emitTerminal(myRun, {
       kind: 'error',
       message: err instanceof Error ? err.message : 'generation failed',
+      runId,
     })
   } finally {
-    if (activeRunId === runId) {
-      activeRunId = null
-      stopper = null
-    }
+    if (activeRun === myRun) activeRun = null
   }
 }
 
 function abort(runId: string): void {
-  if (activeRunId === runId && stopper) {
-    stopper.interrupt()
+  if (activeRun?.runId === runId) {
+    activeRun.stopper.interrupt()
   }
 }
 
@@ -162,7 +168,7 @@ self.addEventListener('message', (event: MessageEvent<SlowWorkerInbound>) => {
       void load()
       return
     case 'generate':
-      void generate(msg.runId, msg.prompt)
+      void generate(msg.runId, msg.messages)
       return
     case 'abort':
       abort(msg.runId)

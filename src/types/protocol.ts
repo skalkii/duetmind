@@ -53,12 +53,18 @@ export type FastWorkerOutbound = {
   readonly decision: TickDecision
 }
 
+export interface ChatMessage {
+  readonly role: 'system' | 'user' | 'assistant'
+  readonly content: string
+}
+
 export type SlowWorkerInbound =
   | { readonly kind: 'load' }
   | {
       readonly kind: 'generate'
       readonly runId: string
-      readonly prompt: string
+      /** Chat-formatted messages. Worker applies the model's chat template. */
+      readonly messages: readonly ChatMessage[]
     }
   | { readonly kind: 'abort'; readonly runId: string }
 
@@ -72,7 +78,12 @@ export type SlowWorkerOutbound =
     }
   | { readonly kind: 'done'; readonly runId: string }
   | { readonly kind: 'aborted'; readonly runId: string }
-  | { readonly kind: 'error'; readonly message: string }
+  | {
+      readonly kind: 'error'
+      readonly message: string
+      /** Optional runId — present when error is scoped to a generation. */
+      readonly runId?: string
+    }
 
 /**
  * Compile-time exhaustiveness assertion. Place at the end of a `switch`/`if`

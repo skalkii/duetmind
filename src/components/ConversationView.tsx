@@ -10,7 +10,7 @@ export function ConversationView() {
   if (!hasContent) {
     return (
       <section className="w-full max-w-lg" aria-label="Conversation transcript">
-        <p className="text-center text-xs italic text-cream-muted/60">
+        <p className="text-center text-xs italic text-cream-muted">
           Conversation will appear here once the session starts.
         </p>
       </section>
@@ -22,10 +22,15 @@ export function ConversationView() {
       className="flex w-full max-w-lg flex-col gap-3"
       aria-label="Conversation transcript"
     >
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted/70">
+      <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted">
         conversation
       </h2>
-      <ol className="flex flex-col gap-3">
+      <ol
+        className="flex flex-col gap-3"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-relevant="additions text"
+      >
         {messages.map((m, i) => (
           <li
             key={`${m.ts}-${i}`}
@@ -35,7 +40,7 @@ export function ConversationView() {
                 : 'self-start border-slow/30 bg-slow/10 text-cream'
             }`}
           >
-            <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-cream-muted/60">
+            <span className="block font-mono text-[9px] uppercase tracking-[0.18em] text-cream-muted">
               {m.role}
               {m.source ? ` · ${m.source}` : ''}
             </span>
@@ -51,7 +56,10 @@ export function ConversationView() {
             </span>
             <span className="mt-1 block font-display text-base italic">
               {slowReplyText}
-              <span className="ml-1 inline-block h-3 w-1.5 animate-pulse bg-slow align-middle" />
+              <span
+                aria-hidden="true"
+                className="ml-1 inline-block h-3 w-1.5 bg-slow align-middle motion-safe:animate-pulse"
+              />
             </span>
           </li>
         )}

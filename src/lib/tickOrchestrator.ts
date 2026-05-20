@@ -122,9 +122,8 @@ export function createTickOrchestrator(
     if (!deps.slowBrain) return
     const store = deps.store.getState()
     const messages = buildChatMessages(store.messages, userText)
-    const promptPayload = JSON.stringify(messages)
     activeGen = deps.slowBrain.generate({
-      prompt: promptPayload,
+      messages,
       onToken: (text) => {
         deps.store.getState().appendSlowReply(text)
         const after = deps.store.getState()
@@ -283,7 +282,12 @@ export function createTickOrchestrator(
         options.onTick?.(decision)
         dispatch(decision)
       },
-      () => {
+      (err: unknown) => {
+        // Surface decision-source failures rather than silently spinning the
+        // loop forever. Loop keeps running so a transient worker hiccup
+        // doesn't kill the whole session, but every failure lands in the
+        // devtools console with a tickId for forensics.
+        console.error('[orchestrator] decision rejected on tick', tickId, err)
         inFlightTickId = -1
       },
     )

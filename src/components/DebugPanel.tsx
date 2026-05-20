@@ -37,17 +37,21 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between px-4 py-2.5 text-left"
         aria-expanded={open}
+        aria-controls="debug-panel-body"
       >
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted">
           debug
         </span>
-        <span className="font-mono text-[10px] text-cream-muted/70">
+        <span className="font-mono text-[10px] text-cream-muted">
           {open ? '−' : '+'}
         </span>
       </button>
 
       {open && (
-        <div className="space-y-4 border-t border-edge/60 px-4 py-4">
+        <div
+          id="debug-panel-body"
+          className="space-y-4 border-t border-edge/60 px-4 py-4"
+        >
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
             <Metric label="tick" value={tickCount.toString()} />
             <Metric label="last decision" value={lastDecisionLabel} />
@@ -66,6 +70,7 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
           </dl>
 
           <ConfigSlider
+            id="debug-silence-threshold"
             label="silence threshold"
             unit="ms"
             min={100}
@@ -76,6 +81,7 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
             onChange={setSilenceThresholdMs}
           />
           <ConfigSlider
+            id="debug-backchannel-rate"
             label="backchannel rate"
             unit=""
             min={0}
@@ -103,7 +109,7 @@ export function DebugPanel({ lastDecision, lastBargeMs }: DebugPanelProps) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-[9px] uppercase tracking-[0.18em] text-cream-muted/60">
+      <dt className="text-[9px] uppercase tracking-[0.18em] text-cream-muted">
         {label}
       </dt>
       <dd className="text-cream">{value}</dd>
@@ -112,6 +118,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function ConfigSlider({
+  id,
   label,
   unit,
   min,
@@ -122,6 +129,7 @@ function ConfigSlider({
   onChange,
   display,
 }: {
+  id: string
   label: string
   unit: string
   min: number
@@ -135,6 +143,7 @@ function ConfigSlider({
   const sliderRef = useRef<HTMLInputElement | null>(null)
   const formatted = display ? display(value) : value.toString()
   const isDefault = Math.abs(value - defaultValue) < step / 2
+  const announced = `${formatted}${unit ? ` ${unit}` : ''}`
 
   // Browsers don't always re-sync the slider thumb when value prop changes
   // via store mutation from elsewhere; nudge the input value imperatively.
@@ -147,16 +156,17 @@ function ConfigSlider({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-baseline justify-between font-mono text-[11px]">
-        <label className="text-cream-muted">
+        <label htmlFor={id} className="text-cream-muted">
           {label}
           {!isDefault && <span className="ml-1 text-fast">·</span>}
         </label>
-        <span className="text-cream">
+        <span className="text-cream" aria-hidden="true">
           {formatted}
-          {unit && <span className="ml-0.5 text-cream-muted/70">{unit}</span>}
+          {unit && <span className="ml-0.5 text-cream-muted">{unit}</span>}
         </span>
       </div>
       <input
+        id={id}
         ref={sliderRef}
         type="range"
         min={min}
@@ -164,6 +174,7 @@ function ConfigSlider({
         step={step}
         defaultValue={value}
         onChange={(e) => onChange(e.target.valueAsNumber)}
+        aria-valuetext={announced}
         className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-edge accent-fast"
       />
     </div>

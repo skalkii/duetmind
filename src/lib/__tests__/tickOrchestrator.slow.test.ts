@@ -140,8 +140,8 @@ describe('orchestrator <-> slow brain', () => {
     await h.tick()
     expect(h.slowGenerate).toHaveBeenCalledTimes(1)
     const opts = h.slowGenerate.mock.calls[0]![0] as SlowGenerateOptions
-    expect(opts.prompt.startsWith('[')).toBe(true)
-    expect(opts.prompt).toContain('what time is it')
+    expect(opts.messages.length).toBeGreaterThan(0)
+    expect(opts.messages.at(-1)?.content).toBe('what time is it')
   })
 
   it('streamed tokens accumulate in the store as slowReplyText', async () => {

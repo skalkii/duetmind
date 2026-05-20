@@ -8,6 +8,9 @@
  */
 
 import type { Message } from '../state/conversationStore'
+import type { ChatMessage } from '../types/protocol'
+
+export type { ChatMessage }
 
 export interface BuildPromptOptions {
   /** Max prior turns to include (most recent first). */
@@ -20,11 +23,6 @@ const DEFAULT_MAX_HISTORY = 6
 const DEFAULT_SYSTEM =
   'You are DuetMind, a concise, friendly conversational partner. ' +
   'Reply in 1–2 short sentences. Plain prose, no markdown, no lists.'
-
-export interface ChatMessage {
-  readonly role: 'system' | 'user' | 'assistant'
-  readonly content: string
-}
 
 /**
  * Format the chat-message array that gets fed to the worker. The worker

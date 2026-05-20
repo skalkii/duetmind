@@ -166,22 +166,46 @@ export function createTts(
     heartbeat = null
   }
 
+  // Tracks in-flight speak() promises so stopAll() + onerror can settle
+  // them deterministically. Without this, a barge-in (which fires
+  // synth.cancel(), not the utterance's `onend`) leaves the promise leaked
+  // and any code awaiting it hangs forever. The orchestrator relies on
+  // endListeners firing to close the reply turn, so we also fan those out.
+  const pendingResolvers = new Set<() => void>()
+  const settleAllSpeaks = (): void => {
+    const all = [...pendingResolvers]
+    pendingResolvers.clear()
+    for (const r of all) r()
+  }
+
   return {
     speak(text: string): Promise<void> {
       return new Promise<void>((resolve) => {
         const utt = deps.createUtterance(text)
         utt.rate = rate
+        let settled = false
+        const settle = (): void => {
+          if (settled) return
+          settled = true
+          pendingResolvers.delete(settle)
+          resolve()
+        }
+        pendingResolvers.add(settle)
         utt.onboundary = (i) => {
           for (const cb of boundaryListeners) cb(i)
         }
         utt.onerror = (msg) => {
           for (const cb of errorListeners) cb(msg)
+          // Treat error as "utterance ended" — orchestrator's TTS-end logic
+          // must still run so a failed utterance doesn't deadlock the turn.
+          for (const cb of endListeners) cb()
+          settle()
         }
         utt.onend = () => {
           speaking = deps.synthesis.speaking
           if (!speaking) stopHeartbeat()
           for (const cb of endListeners) cb()
-          resolve()
+          settle()
         }
         speaking = true
         startHeartbeat()
@@ -194,6 +218,9 @@ export function createTts(
       deps.synthesis.cancel()
       stopHeartbeat()
       speaking = false
+      // Settle every pending speak() promise so callers awaiting them
+      // don't leak. Browsers do not reliably fire `onend` after cancel().
+      settleAllSpeaks()
     },
     onBoundary(cb): () => void {
       boundaryListeners.add(cb)

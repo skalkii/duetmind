@@ -226,7 +226,7 @@ export function SessionPanel({
               ? 'border border-coral/40 bg-coral/15 text-coral hover:bg-coral/25'
               : 'border border-fast/40 bg-fast/15 text-fast hover:bg-fast/25'
           }`}
-          aria-pressed={live}
+          {...(error ? { 'aria-describedby': 'session-error' } : {})}
         >
           {live
             ? 'end session'
@@ -264,7 +264,7 @@ export function SessionPanel({
         )}
 
         <div className="space-y-2 text-left">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted/70">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cream-muted">
             transcript
           </p>
           <div
@@ -272,9 +272,7 @@ export function SessionPanel({
             className="min-h-[1.5rem] whitespace-pre-wrap font-display text-xl italic leading-snug text-cream"
           >
             {userFinal || (
-              <span className="text-cream-muted/50">
-                say something to begin…
-              </span>
+              <span className="text-cream-muted">say something to begin…</span>
             )}
           </div>
           <div
@@ -287,6 +285,7 @@ export function SessionPanel({
 
         {error && (
           <p
+            id="session-error"
             role="alert"
             className="rounded-md border border-coral/30 bg-coral/10 px-3 py-2 font-mono text-[11px] text-coral"
           >

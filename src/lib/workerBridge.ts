@@ -37,15 +37,42 @@ export interface TypedWorker<TIn, TOut> {
   readonly isTerminated: boolean
 }
 
+/**
+ * Default narrow-check: every protocol message in this codebase is a
+ * discriminated union keyed by `kind`. Anything missing a string `kind`
+ * is either uninitialised noise or a malformed payload from a buggy /
+ * compromised worker — drop it instead of casting unchecked.
+ */
+function defaultIsValid(data: unknown): boolean {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'kind' in data &&
+    typeof (data as { kind: unknown }).kind === 'string'
+  )
+}
+
+export interface TypedWorkerOptions<TOut> {
+  /** Runtime guard for inbound messages. Defaults to a `kind: string` check. */
+  isValid?: (data: unknown) => data is TOut
+}
+
 export function createTypedWorker<TIn, TOut>(
   worker: WorkerLike,
+  options: TypedWorkerOptions<TOut> = {},
 ): TypedWorker<TIn, TOut> {
   const messageListeners = new Set<(m: TOut) => void>()
   const errorListeners = new Set<(e: ErrorEvent) => void>()
   let terminated = false
+  const isValid =
+    options.isValid ?? ((data: unknown): data is TOut => defaultIsValid(data))
 
   const handleMessage = (event: { data: unknown }): void => {
-    for (const cb of messageListeners) cb(event.data as TOut)
+    if (!isValid(event.data)) {
+      console.warn('[workerBridge] dropping malformed message', event.data)
+      return
+    }
+    for (const cb of messageListeners) cb(event.data)
   }
   const handleError = (event: ErrorEvent): void => {
     for (const cb of errorListeners) cb(event)

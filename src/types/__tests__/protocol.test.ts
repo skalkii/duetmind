@@ -104,7 +104,11 @@ describe('Worker message contracts', () => {
   it('slow worker variants compile', () => {
     const messages: SlowWorkerInbound[] = [
       { kind: 'load' },
-      { kind: 'generate', runId: 'r1', prompt: 'hi' },
+      {
+        kind: 'generate',
+        runId: 'r1',
+        messages: [{ role: 'user', content: 'hi' }],
+      },
       { kind: 'abort', runId: 'r1' },
     ]
     const replies: SlowWorkerOutbound[] = [
