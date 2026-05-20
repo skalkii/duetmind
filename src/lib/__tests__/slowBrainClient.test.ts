@@ -61,6 +61,15 @@ describe('createSlowBrain', () => {
     expect(w.sent).toEqual([{ kind: 'load' }])
   })
 
+  it('forwards a custom modelId to the worker on load(modelId)', () => {
+    const w = makeFakeSlow()
+    const sb = createSlowBrain(w)
+    void sb.load('Qwen/Qwen2.5-0.5B-Instruct')
+    expect(w.sent).toEqual([
+      { kind: 'load', modelId: 'Qwen/Qwen2.5-0.5B-Instruct' },
+    ])
+  })
+
   it('resolves load() when worker emits ready', async () => {
     const w = makeFakeSlow()
     const sb = createSlowBrain(w)
