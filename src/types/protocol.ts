@@ -15,6 +15,7 @@ export interface TickInput {
   readonly slowReplyText: string | null
   readonly tickCount: number
   readonly msSinceLastBackchannel: number
+  readonly replyInFlight: boolean
 }
 
 export type TickAction =

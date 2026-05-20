@@ -78,6 +78,15 @@ describe('useConversationStore', () => {
     expect(useConversationStore.getState().tickCount).toBe(3)
   })
 
+  it('markReplyStarted/markReplyEnded toggles replyInFlight', () => {
+    const { markReplyStarted, markReplyEnded } = useConversationStore.getState()
+    expect(useConversationStore.getState().replyInFlight).toBe(false)
+    markReplyStarted()
+    expect(useConversationStore.getState().replyInFlight).toBe(true)
+    markReplyEnded()
+    expect(useConversationStore.getState().replyInFlight).toBe(false)
+  })
+
   it('appendMessage adds to history in order', () => {
     const { appendMessage } = useConversationStore.getState()
     appendMessage({ role: 'user', text: 'hi', ts: 1 })
@@ -100,6 +109,7 @@ describe('selectTickInput', () => {
       lastBackchannelAt: null,
       slowReplyText: null,
       slowReplyReady: false,
+      replyInFlight: false,
       tickCount: 0,
       messages: [],
       ...over,

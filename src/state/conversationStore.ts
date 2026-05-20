@@ -28,6 +28,7 @@ export interface ConversationState {
   readonly lastBackchannelAt: number | null
   readonly slowReplyText: string | null
   readonly slowReplyReady: boolean
+  readonly replyInFlight: boolean
   readonly tickCount: number
   readonly messages: readonly Message[]
 }
@@ -41,6 +42,8 @@ export interface ConversationActions {
   appendSlowReply(chunk: string): void
   markSlowReplyReady(): void
   clearSlowReply(): void
+  markReplyStarted(): void
+  markReplyEnded(): void
   markBackchannel(now: number): void
   incrementTick(): void
   appendMessage(msg: Message): void
@@ -59,6 +62,7 @@ const INITIAL_STATE: ConversationState = {
   lastBackchannelAt: null,
   slowReplyText: null,
   slowReplyReady: false,
+  replyInFlight: false,
   tickCount: 0,
   messages: [],
 }
@@ -123,6 +127,14 @@ export const useConversationStore = create<ConversationStore>((set) => ({
     set({ slowReplyText: null, slowReplyReady: false })
   },
 
+  markReplyStarted() {
+    set({ replyInFlight: true })
+  },
+
+  markReplyEnded() {
+    set({ replyInFlight: false })
+  },
+
   markBackchannel(now) {
     set({ lastBackchannelAt: now })
   },
@@ -171,5 +183,6 @@ export function selectTickInput(
     slowReplyText: state.slowReplyText,
     tickCount: state.tickCount,
     msSinceLastBackchannel,
+    replyInFlight: state.replyInFlight,
   }
 }
