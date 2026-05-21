@@ -190,9 +190,10 @@ describe('orchestrator <-> slow brain', () => {
     h.nowAdvance(1000)
     await h.tick()
     h.emitToken('partial')
-    // User barges in while self is speaking
+    // User barges in while self is speaking — sustain past the min guard
     useConversationStore.getState().setSelfSpeaking(true)
     h.emitRms(0.5)
+    h.nowAdvance(300)
     await h.tick()
     expect(h.ttsStopAll).toHaveBeenCalledTimes(1)
     expect(h.abortSpy).toHaveBeenCalledTimes(1)
@@ -292,8 +293,9 @@ describe('orchestrator handoff state machine', () => {
     h.nowAdvance(1000)
     await h.tick()
     h.emitToken('Two pm.')
-    h.emitTtsEnd() // fast → handoff
-    h.emitTtsEnd() // slow done
+    h.emitTtsEnd() // fast → handoff (slow sentence dispatched)
+    h.emitDone() // generator done, no more tokens
+    h.emitTtsEnd() // slow sentence finished speaking
     const s = useConversationStore.getState()
     expect(s.selfSpeaking).toBe(false)
     expect(s.replyInFlight).toBe(false)
@@ -312,6 +314,48 @@ describe('orchestrator handoff state machine', () => {
     h.emitTtsEnd() // handoff → speak count 2
     h.emitToken(' Second.') // arriving after handoff — should not trigger another speak
     expect(h.ttsSpeak).toHaveBeenCalledTimes(2)
+  })
+
+  it('speaks subsequent sentences after first handoff (no truncation)', async () => {
+    const h = makeHarness()
+    const orch = createTickOrchestrator(h.deps, { random: () => 0 })
+    orch.start()
+    h.emitFinal('hi')
+    h.nowAdvance(1000)
+    await h.tick()
+    h.emitToken('First.')
+    h.emitToken(' Second.')
+    h.emitToken(' Third.')
+    h.emitTtsEnd() // fast stall ends → "First." dispatched
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(2)
+    expect(h.ttsSpeak.mock.calls[1]![0]).toBe('First.')
+    h.emitTtsEnd() // "First." finished → "Second." dispatched
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(3)
+    expect(h.ttsSpeak.mock.calls[2]![0]).toBe('Second.')
+    h.emitTtsEnd() // "Second." finished → "Third." dispatched
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(4)
+    expect(h.ttsSpeak.mock.calls[3]![0]).toBe('Third.')
+    h.emitDone()
+    h.emitTtsEnd() // "Third." finished, generator done → close turn
+    const s = useConversationStore.getState()
+    expect(s.replyInFlight).toBe(false)
+    const assistant = s.messages.find((m) => m.role === 'assistant')
+    expect(assistant?.text).toBe('First. Second. Third.')
+  })
+
+  it('flushes unspoken tail without a sentence boundary on onDone', async () => {
+    const h = makeHarness()
+    const orch = createTickOrchestrator(h.deps, { random: () => 0 })
+    orch.start()
+    h.emitFinal('hi')
+    h.nowAdvance(1000)
+    await h.tick()
+    h.emitToken('no punctuation here') // no boundary
+    h.emitTtsEnd() // fast stall ends; nothing dispatched yet (no boundary, gen still active)
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(1)
+    h.emitDone() // gen done → flush tail as final chunk
+    expect(h.ttsSpeak).toHaveBeenCalledTimes(2)
+    expect(h.ttsSpeak.mock.calls[1]![0]).toBe('no punctuation here')
   })
 
   it('turn-based mode skips the fast stall TTS and waits for slow boundary', async () => {

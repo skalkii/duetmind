@@ -67,7 +67,21 @@ export function defaultAudioDeps(): AudioMeterDeps {
     throw new UnsupportedAudioError('AudioContext is unavailable')
   }
   return {
-    getUserMedia: (c) => navigator.mediaDevices.getUserMedia(c),
+    // Always ask the browser to apply echo cancellation, noise suppression,
+    // and auto gain. Without echo cancellation, the assistant's own TTS
+    // bleeds back into the mic and trips false barge-ins / STT pollution.
+    getUserMedia: (c) =>
+      navigator.mediaDevices.getUserMedia({
+        ...c,
+        audio:
+          c.audio === true || c.audio === undefined
+            ? {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              }
+            : { echoCancellation: true, noiseSuppression: true, ...c.audio },
+      }),
     createAudioContext: () => new AC(),
     scheduler: {
       setInterval: (cb, ms) => setInterval(cb, ms),

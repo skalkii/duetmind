@@ -28,18 +28,48 @@ function input(over: Partial<TickInput> = {}): TickInput {
 const alwaysFire = () => 0 // random < any positive rate
 
 describe('decideTick — Rule 1 (barge-in)', () => {
-  it('interrupts self when user starts speaking while we speak', () => {
+  it('interrupts self after sustained user speech while we speak', () => {
     expect(
-      decideTick(input({ userSpeaking: true, selfSpeaking: true })),
+      decideTick(
+        input({
+          userSpeaking: true,
+          selfSpeaking: true,
+          msSinceUserStartedSpeaking: 300,
+        }),
+      ),
     ).toEqual({ action: 'interrupt_self' })
+  })
+
+  it('does not fire on a brief blip (filters speaker bleed)', () => {
+    expect(
+      decideTick(
+        input({
+          userSpeaking: true,
+          selfSpeaking: true,
+          msSinceUserStartedSpeaking: 50,
+        }),
+      ).action,
+    ).not.toBe('interrupt_self')
   })
 
   it('does not fire when only one of the conditions holds', () => {
     expect(
-      decideTick(input({ userSpeaking: true, selfSpeaking: false })).action,
+      decideTick(
+        input({
+          userSpeaking: true,
+          selfSpeaking: false,
+          msSinceUserStartedSpeaking: 500,
+        }),
+      ).action,
     ).not.toBe('interrupt_self')
     expect(
-      decideTick(input({ userSpeaking: false, selfSpeaking: true })).action,
+      decideTick(
+        input({
+          userSpeaking: false,
+          selfSpeaking: true,
+          msSinceUserStartedSpeaking: 500,
+        }),
+      ).action,
     ).not.toBe('interrupt_self')
   })
 })
@@ -64,7 +94,7 @@ describe('decideTick — Rule 2 (backchannel)', () => {
     const d = decideTick(
       input({
         userSpeaking: true,
-        msSinceUserStartedSpeaking: 2999,
+        msSinceUserStartedSpeaking: 1499,
         msSinceLastBackchannel: Number.POSITIVE_INFINITY,
       }),
       { random: alwaysFire },
@@ -72,12 +102,12 @@ describe('decideTick — Rule 2 (backchannel)', () => {
     expect(d.action).toBe('silent')
   })
 
-  it('respects the backchannel cooldown — 1999ms boundary blocks', () => {
+  it('respects the backchannel cooldown — 1499ms boundary blocks', () => {
     const d = decideTick(
       input({
         userSpeaking: true,
         msSinceUserStartedSpeaking: 10_000,
-        msSinceLastBackchannel: 1_999,
+        msSinceLastBackchannel: 1_499,
       }),
       { random: alwaysFire },
     )
@@ -207,15 +237,16 @@ describe('decideTick — Rule 5 (default)', () => {
 describe('DEFAULT_DECISION_CONFIG', () => {
   it('matches the spec constants', () => {
     expect(DEFAULT_DECISION_CONFIG).toEqual({
-      minUserSpeechForBackchannelMs: 3000,
-      backchannelMinGapMs: 2000,
-      backchannelRate: 0.3,
+      minUserSpeechForBackchannelMs: 1500,
+      backchannelMinGapMs: 1500,
+      backchannelRate: 0.5,
       silenceThresholdMs: 700,
       confidentTurnEndMs: 300,
       turnEndConfidenceThreshold: 0.7,
       bargeInEnabled: true,
       backchannelEnabled: true,
       fastStallEnabled: true,
+      minBargeSpeechMs: 250,
     })
   })
 

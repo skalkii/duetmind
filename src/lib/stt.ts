@@ -55,6 +55,43 @@ type WindowWithRecognition = Window & {
   SpeechRecognition?: new () => unknown
 }
 
+interface BraveNavigator extends Navigator {
+  brave?: { isBrave?: () => Promise<boolean> }
+}
+
+let braveDetected: boolean | null = null
+async function isBrave(): Promise<boolean> {
+  if (braveDetected !== null) return braveDetected
+  if (typeof navigator === 'undefined') return false
+  const n = navigator as BraveNavigator
+  try {
+    braveDetected = (await n.brave?.isBrave?.()) === true
+  } catch {
+    braveDetected = false
+  }
+  return braveDetected
+}
+
+export function formatSttError(code: string, brave: boolean): string {
+  switch (code) {
+    case 'network':
+      return brave
+        ? 'Speech recognition blocked. Brave disables Google Speech backend by default. Use Chrome/Edge, or enable brave://settings/privacy → "Use Google services for push messaging".'
+        : 'Speech recognition backend unreachable. Check network/VPN, or use Chrome/Edge on a non-restricted network.'
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Microphone permission denied. Allow mic access in the address bar.'
+    case 'no-speech':
+      return 'No speech detected. Try speaking louder or closer to the mic.'
+    case 'audio-capture':
+      return 'Mic not found. Check input device.'
+    case 'aborted':
+      return 'Speech recognition aborted.'
+    default:
+      return `Speech recognition error: ${code}`
+  }
+}
+
 interface BrowserRecognition {
   continuous: boolean
   interimResults: boolean
@@ -133,7 +170,12 @@ export function defaultSttDeps(): SttDeps {
         adapter.onresult?.(out)
       }
       raw.onend = () => adapter.onend?.()
-      raw.onerror = (e) => adapter.onerror?.(e.error ?? e.message ?? 'unknown')
+      raw.onerror = (e) => {
+        const code = e.error ?? e.message ?? 'unknown'
+        void isBrave().then((brave) => {
+          adapter.onerror?.(formatSttError(code, brave))
+        })
+      }
       raw.onstart = () => adapter.onstart?.()
       return adapter
     },

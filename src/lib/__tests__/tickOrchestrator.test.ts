@@ -112,12 +112,32 @@ beforeEach(() => {
 })
 
 describe('createTickOrchestrator', () => {
-  it('flips userSpeaking on audio level crossings', () => {
+  it('flips userSpeaking on audio level crossings with hangover', () => {
     const h = makeHarness()
-    const orch = createTickOrchestrator(h.deps)
+    const orch = createTickOrchestrator(h.deps, { speakingHangoverMs: 0 })
     orch.start()
     h.emitRms(0.5)
     expect(useConversationStore.getState().userSpeaking).toBe(true)
+    h.emitRms(0)
+    expect(useConversationStore.getState().userSpeaking).toBe(false)
+  })
+
+  it('keeps userSpeaking through brief inter-word silences (hysteresis)', () => {
+    const h = makeHarness()
+    const orch = createTickOrchestrator(h.deps, { speakingHangoverMs: 300 })
+    orch.start()
+    h.emitRms(0.5)
+    expect(useConversationStore.getState().userSpeaking).toBe(true)
+    // Brief silence below threshold but under the hangover — stays speaking
+    h.nowAdvance(150)
+    h.emitRms(0)
+    expect(useConversationStore.getState().userSpeaking).toBe(true)
+    h.emitRms(0.5)
+    h.nowAdvance(150)
+    h.emitRms(0)
+    expect(useConversationStore.getState().userSpeaking).toBe(true)
+    // Sustained silence past the hangover — flips off
+    h.nowAdvance(400)
     h.emitRms(0)
     expect(useConversationStore.getState().userSpeaking).toBe(false)
   })
@@ -157,12 +177,13 @@ describe('createTickOrchestrator', () => {
     expect(useConversationStore.getState().lastBackchannelAt).not.toBeNull()
   })
 
-  it('barges in when user starts speaking while self speaks', async () => {
+  it('barges in when user sustains speech while self speaks', async () => {
     const h = makeHarness()
     const orch = createTickOrchestrator(h.deps, { random: () => 0 })
     orch.start()
     useConversationStore.getState().setSelfSpeaking(true)
     h.emitRms(0.5)
+    h.nowAdvance(300) // exceed the minBargeSpeechMs guard
     await h.tick()
     expect(h.ttsStopAll).toHaveBeenCalledTimes(1)
     expect(useConversationStore.getState().selfSpeaking).toBe(false)
@@ -170,7 +191,10 @@ describe('createTickOrchestrator', () => {
 
   it('kicks off a fast reply after 700ms silence + final transcript', async () => {
     const h = makeHarness()
-    const orch = createTickOrchestrator(h.deps, { random: () => 0 })
+    const orch = createTickOrchestrator(h.deps, {
+      random: () => 0,
+      speakingHangoverMs: 0,
+    })
     orch.start()
     h.emitRms(0.5)
     h.emitFinal('what time is it')
@@ -253,6 +277,7 @@ describe('createTickOrchestrator', () => {
     const latencies: number[] = []
     const orch = createTickOrchestrator(h.deps, {
       random: () => 0,
+      config: { minBargeSpeechMs: 0 },
       onBargeInLatency: (ms) => latencies.push(ms),
     })
     orch.start()
@@ -285,6 +310,8 @@ describe('createTickOrchestrator', () => {
     const latencies: number[] = []
     const orch = createTickOrchestrator(h.deps, {
       random: () => 0,
+      speakingHangoverMs: 0,
+      config: { minBargeSpeechMs: 0 },
       onBargeInLatency: (ms) => latencies.push(ms),
     })
     orch.start()

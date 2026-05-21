@@ -3,6 +3,7 @@ import {
   createStt,
   UnsupportedSttError,
   defaultSttDeps,
+  formatSttError,
   type SpeechRecognitionLike,
   type SttDeps,
 } from '../stt'
@@ -124,5 +125,28 @@ describe('createStt', () => {
     const rec = recognitions[0]!
     rec.onend?.()
     expect(rec.start).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('formatSttError', () => {
+  it('network error in Brave names the browser and points at the setting', () => {
+    const msg = formatSttError('network', true)
+    expect(msg).toMatch(/Brave/)
+    expect(msg).toMatch(/brave:\/\/settings\/privacy/)
+  })
+
+  it('network error outside Brave suggests network/VPN/browser', () => {
+    const msg = formatSttError('network', false)
+    expect(msg).toMatch(/network/i)
+    expect(msg).not.toMatch(/Brave/)
+  })
+
+  it('permission errors point at the address bar', () => {
+    expect(formatSttError('not-allowed', false)).toMatch(/permission/i)
+    expect(formatSttError('service-not-allowed', false)).toMatch(/permission/i)
+  })
+
+  it('unknown codes pass through with a label', () => {
+    expect(formatSttError('weird-thing', false)).toMatch(/weird-thing/)
   })
 })

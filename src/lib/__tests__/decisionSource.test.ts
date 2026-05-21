@@ -33,7 +33,11 @@ describe('createInlineDecisionSource', () => {
     const src = createInlineDecisionSource({ random: () => 0 })
     const decision = await src.decide(
       1,
-      baseInput({ userSpeaking: true, selfSpeaking: true }),
+      baseInput({
+        userSpeaking: true,
+        selfSpeaking: true,
+        msSinceUserStartedSpeaking: 500,
+      }),
     )
     expect(decision.action).toBe('interrupt_self')
   })

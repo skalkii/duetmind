@@ -84,9 +84,17 @@ export function defaultTtsDeps(): TtsDeps {
       'speechSynthesis is unavailable in this browser.',
     )
   }
+  // Adapter → underlying real utterance. Browser rejects synth.speak() if
+  // the argument isn't an instanceof SpeechSynthesisUtterance, so we must
+  // hand it the raw object we built in createUtterance.
+  const rawMap = new WeakMap<TtsUtteranceLike, SpeechSynthesisUtterance>()
   return {
     synthesis: {
-      speak: (u) => synth.speak(u as unknown as SpeechSynthesisUtterance),
+      speak: (u) => {
+        const raw = rawMap.get(u)
+        if (!raw) throw new Error('utterance not created by this Tts instance')
+        synth.speak(raw)
+      },
       cancel: () => synth.cancel(),
       pause: () => synth.pause(),
       resume: () => synth.resume(),
@@ -105,6 +113,7 @@ export function defaultTtsDeps(): TtsDeps {
         onerror: null,
         onboundary: null,
       }
+      rawMap.set(adapter, raw)
       raw.onend = () => adapter.onend?.()
       raw.onerror = (e: BrowserUtteranceEvent) =>
         adapter.onerror?.(e.error ?? 'speech error')
@@ -184,11 +193,21 @@ export function createTts(
         const utt = deps.createUtterance(text)
         utt.rate = rate
         let settled = false
+        let endFired = false
         const settle = (): void => {
           if (settled) return
           settled = true
           pendingResolvers.delete(settle)
           resolve()
+        }
+        // Chrome fires both `onerror` (with 'interrupted') and `onend` for
+        // cancelled utterances. Without this guard, endListeners fan out
+        // twice and the orchestrator dispatches two sentences per real TTS
+        // event — sounds like the audio is cut mid-reply.
+        const fireEndOnce = (): void => {
+          if (endFired) return
+          endFired = true
+          for (const cb of endListeners) cb()
         }
         pendingResolvers.add(settle)
         utt.onboundary = (i) => {
@@ -196,15 +215,13 @@ export function createTts(
         }
         utt.onerror = (msg) => {
           for (const cb of errorListeners) cb(msg)
-          // Treat error as "utterance ended" — orchestrator's TTS-end logic
-          // must still run so a failed utterance doesn't deadlock the turn.
-          for (const cb of endListeners) cb()
+          fireEndOnce()
           settle()
         }
         utt.onend = () => {
           speaking = deps.synthesis.speaking
           if (!speaking) stopHeartbeat()
-          for (const cb of endListeners) cb()
+          fireEndOnce()
           settle()
         }
         speaking = true

@@ -157,6 +157,7 @@ export function SessionPanel({
           onTick: (decision) => onDecision?.(decision),
         },
       )
+      stt.onError((msg) => setError(msg))
       await audio.start()
       stt.start()
       orchestrator.start()

@@ -32,26 +32,55 @@ export interface DecisionConfig {
   readonly bargeInEnabled: boolean
   readonly backchannelEnabled: boolean
   readonly fastStallEnabled: boolean
+  /**
+   * Minimum sustained user speech before barge-in fires. Filters out
+   * speaker bleed, microphone pops, and short noise spikes that would
+   * otherwise interrupt the assistant's reply mid-sentence.
+   */
+  readonly minBargeSpeechMs: number
 }
 
 export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
-  minUserSpeechForBackchannelMs: 3000,
-  backchannelMinGapMs: 2000,
-  backchannelRate: 0.3,
+  minUserSpeechForBackchannelMs: 1500,
+  backchannelMinGapMs: 1500,
+  backchannelRate: 0.5,
   silenceThresholdMs: 700,
   confidentTurnEndMs: 300,
   turnEndConfidenceThreshold: 0.7,
   bargeInEnabled: true,
   backchannelEnabled: true,
   fastStallEnabled: true,
+  minBargeSpeechMs: 250,
 }
 
-export const BACKCHANNEL_PHRASES = ['mmhm', 'right', 'uh-huh', 'yeah'] as const
+// "mmhm" and "uh-huh" get spelled out letter-by-letter by Chrome's TTS
+// ("em em aitch em"). Stick to dictionary words it knows how to say.
+export const BACKCHANNEL_PHRASES = [
+  'right',
+  'yeah',
+  'okay',
+  'I see',
+  'sure',
+  'go on',
+  'got it',
+  'gotcha',
+  'understood',
+  'makes sense',
+] as const
 
 export const FAST_STALL_PHRASES = [
   'Let me think about that.',
   'Hmm, one moment.',
   'Give me a sec.',
+  'Good question.',
+  'Let me see.',
+  'Thinking it through.',
+  'One moment, please.',
+  'Interesting question.',
+  'Let me work that out.',
+  'Hold on a second.',
+  'Right, okay.',
+  'Let me consider that.',
 ] as const
 
 function pick<T>(pool: readonly T[], random: () => number): T {
@@ -73,8 +102,14 @@ export function decideTick(
   const random = options.random ?? Math.random
 
   // Rule 1 — barge-in. User talks while we speak → cut ourselves off.
-  // Gated by cfg.bargeInEnabled so turn-based mode can suppress it.
-  if (cfg.bargeInEnabled && input.userSpeaking && input.selfSpeaking) {
+  // Gated by cfg.bargeInEnabled. Requires sustained speech so short
+  // bleed/pops from our own speaker don't trigger false interrupts.
+  if (
+    cfg.bargeInEnabled &&
+    input.userSpeaking &&
+    input.selfSpeaking &&
+    input.msSinceUserStartedSpeaking >= cfg.minBargeSpeechMs
+  ) {
     return { action: 'interrupt_self' }
   }
 
