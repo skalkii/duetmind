@@ -91,8 +91,8 @@ Top-down. First matching rule wins.
 flowchart TD
   In([TickInput + DecisionConfig])
 
-  R1{"Rule 1 — barge-in<br/>userSpeaking && selfSpeaking<br/>&& bargeInEnabled?"}
-  R2{"Rule 2 — backchannel<br/>userSpeaking AND speech over 3s<br/>AND cooldown OK AND random under 0.3<br/>AND backchannelEnabled?"}
+  R1{"Rule 1 — barge-in<br/>userSpeaking AND selfSpeaking<br/>AND speech sustained 250ms+<br/>AND bargeInEnabled?"}
+  R2{"Rule 2 — backchannel<br/>userSpeaking AND speech over 1.5s<br/>AND cooldown OK AND random under 0.5<br/>AND backchannelEnabled?"}
   R4{"Rule 4 — handoff<br/>selfSpeaking && slowReplyReady<br/>&& replyInFlight?"}
   R3{"Rule 3 — start reply<br/>not speaking AND no replyInFlight<br/>AND transcript non-empty AND<br/>silence over 700ms OR (silence over 300ms<br/>AND confidence at or above 0.7)?"}
   R5{Else}
@@ -146,17 +146,18 @@ stateDiagram-v2
   StartFastReply --> StallSpeaking: selfSpeaking=true<br/>replyInFlight=true
   StallSpeaking: STALL_SPEAKING<br/>fast TTS active<br/>slow brain streaming tokens
   StallSpeaking --> StallSpeaking: token arrives → appendSlowReply<br/>(boundary → slowReplyReady=true)
-  StallSpeaking --> InterruptSelf: rule 1 — user starts speaking
-  StallSpeaking --> SlowSpeaking: tts.onEnd && slowReplyReady<br/>→ maybeHandoff() → tts.speak(slow)
-  StallSpeaking --> WaitingForSlow: tts.onEnd && !slowReplyReady<br/>(slow still streaming)
+  StallSpeaking --> InterruptSelf: rule 1 — sustained user speech (≥250ms)
+  StallSpeaking --> SlowSpeaking: tts.onEnd<br/>→ dispatchNextSentence() → tts.speak(sentence #1)
+  StallSpeaking --> WaitingForSlow: tts.onEnd && no sentence yet<br/>(slow still streaming)
 
   WaitingForSlow: WAITING<br/>fast TTS ended,<br/>no audio playing,<br/>slow still generating
-  WaitingForSlow --> SlowSpeaking: first sentence boundary lands<br/>→ maybeHandoff() fires
-  WaitingForSlow --> InterruptSelf: rule 1 — user starts speaking
+  WaitingForSlow --> SlowSpeaking: first sentence boundary lands<br/>→ dispatchNextSentence() fires
+  WaitingForSlow --> InterruptSelf: rule 1 — sustained user speech
 
-  SlowSpeaking: SLOW_SPEAKING<br/>slow reply TTS active<br/>slowHandedOff=true
-  SlowSpeaking --> InterruptSelf: rule 1 — user starts speaking
-  SlowSpeaking --> Done: tts.onEnd
+  SlowSpeaking: SLOW_SPEAKING<br/>slow reply TTS active<br/>slowSpokenLen advances per sentence
+  SlowSpeaking --> SlowSpeaking: tts.onEnd → dispatchNextSentence()<br/>speaks sentence #N+1 if buffered
+  SlowSpeaking --> InterruptSelf: rule 1 — sustained user speech
+  SlowSpeaking --> Done: tts.onEnd AND no unspoken text<br/>AND generator done
 
   Done: finishReplyTurn<br/>commit assistant message<br/>setSelfSpeaking(false)<br/>markReplyEnded
   Done --> Idle
@@ -184,12 +185,12 @@ sequenceDiagram
   Note over Mic,UI: AI is mid-reply (selfSpeaking = true)
 
   Mic->>Audio: voice begins
-  Audio->>Audio: RMS at or above threshold
+  Audio->>Audio: RMS ≥ threshold × 3 (selfSpeaking guard)
   Audio->>Orch: onLevel(rms)
   Orch->>Orch: bargeInArmedAt = now() (T1)
   Orch->>Store: setUserSpeaking(true, now)
 
-  Note right of Orch: next tick fires within 200ms
+  Note right of Orch: rule 1 requires msSinceUserStartedSpeaking ≥ 250ms<br/>(filters speaker bleed) — next qualifying tick fires within 250–450ms
 
   Orch->>Fast: send TickInput
   Fast->>Orch: TickDecision interrupt_self
@@ -221,8 +222,8 @@ flowchart LR
   Final[onFinal]
 
   StoreSpeak["setUserSpeaking(speaking, now)<br/>+ arm bargeInArmedAt"]
-  StorePart["updateUserPartial(text)"]
-  StoreFinal["commitUserFinal(text, now)<br/>+ appendMessage on reply turn"]
+  StorePart["updateUserPartial(text)<br/>gated: drop while selfSpeaking"]
+  StoreFinal["commitUserFinal(text, now)<br/>gated: drop while selfSpeaking"]
 
   Mic --> Stream
   Stream --> Anal
@@ -233,7 +234,8 @@ flowchart LR
   Recog --> Final
   Partial --> StorePart
   Final --> StoreFinal
-  LevelCb -- "edge only" --> StoreSpeak
+  LevelCb -- "rising edge<br/>(threshold×3 while selfSpeaking)" --> StoreSpeak
+  LevelCb -- "falling edge<br/>after 350ms hangover" --> StoreSpeak
 
   style RMS fill:#ffb86b22,stroke:#ffb86b
   style Recog fill:#ffb86b22,stroke:#ffb86b

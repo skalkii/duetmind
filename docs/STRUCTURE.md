@@ -130,7 +130,8 @@ Live-tunable subset of `DecisionConfig` that the debug panel mutates:
   `fastStallEnabled`)
 
 `toDecisionConfig(state)` projects to the shape the orchestrator hands
-to `decideTick`.
+to `decideTick` — including the new `minBargeSpeechMs` guard that
+filters speaker-bleed from triggering false barge-ins.
 
 `MODEL_OPTIONS` lists the 5 known-good models with sizes for the UI
 picker.
@@ -147,6 +148,11 @@ Mic capture + RMS-based level meter.
 - `createAudioMeter(deps?, options?): AudioMeter` — factory
 - `UnsupportedAudioError` — named error class for unsupported browsers
 
+`defaultAudioDeps()` requests
+`echoCancellation: true, noiseSuppression: true, autoGainControl: true`
+on `getUserMedia` so the assistant's own TTS doesn't bleed back into
+the mic and trip false barge-ins.
+
 Deps are injectable (`getUserMedia`, `createAudioContext`, scheduler)
 so tests pass fakes. No React. No store coupling.
 
@@ -158,6 +164,11 @@ Wrapper over `webkitSpeechRecognition` / `SpeechRecognition`:
 - Auto-restart on Chrome's silence-stop
 - Throws `UnsupportedSttError` on Firefox/Safari
 - Three listener sets: `onPartial`, `onFinal`, `onError`
+- `formatSttError(code, isBrave)` maps raw error codes (`network`,
+  `not-allowed`, `service-not-allowed`, …) to actionable strings.
+  Brave is auto-detected via `navigator.brave?.isBrave()` and gets a
+  pointer at `brave://settings/privacy → "Use Google services for
+  push messaging"`.
 
 ### `src/lib/tts.ts`
 
@@ -168,6 +179,13 @@ Wrapper over `speechSynthesis`:
   `onerror`, or `stopAll()`. Never leaks.
 - `stopAll()` — synchronous; the barge-in critical path
 - 10s pause/resume heartbeat for Chrome's 15s synth bug
+- Adapter → real `SpeechSynthesisUtterance` is bridged via a `WeakMap`
+  inside `defaultTtsDeps()` so Chrome's `synth.speak()` accepts the
+  argument (it `instanceof`-checks the prototype)
+- Per-utterance `endFired` guard ensures `endListeners` fan out at most
+  once per `speak()`. Chrome fires both `onerror('interrupted')` and
+  `onend` for cancelled utterances; without the guard the orchestrator
+  dispatched two slow sentences per real TTS event
 
 ### `src/lib/decisionRules.ts`
 
@@ -177,7 +195,13 @@ Exports:
 
 - `decideTick`
 - `DecisionConfig` interface + `DEFAULT_DECISION_CONFIG`
-- `BACKCHANNEL_PHRASES`, `FAST_STALL_PHRASES`
+- `BACKCHANNEL_PHRASES` (10 dictionary-word entries Chrome's TTS
+  pronounces correctly — "mmhm" / "uh-huh" got spelled out
+  letter-by-letter)
+- `FAST_STALL_PHRASES` (12 short stalls)
+
+Defaults: `minUserSpeechForBackchannelMs: 1500`, `backchannelMinGapMs: 1500`,
+`backchannelRate: 0.5`, `minBargeSpeechMs: 250`.
 
 No DOM, no React, no timers, no module-level mutable state.
 
@@ -236,9 +260,19 @@ and runs the 200ms loop.
 Owns:
 
 - subscriptions to audio level / STT events / TTS lifecycle
+- VAD hysteresis: rising edge immediate, falling edge waits
+  `speakingHangoverMs` (default 350 ms) so inter-word silences don't
+  reset the sustained-speech gate that drives backchannels
+- selfSpeaking gating: while assistant is talking, RMS threshold is
+  tripled (filters residual echo) and STT partial/final updates are
+  dropped (so the assistant doesn't transcribe itself)
 - the in-flight tick-id guard
 - the action-executor map (`Record<TickAction, handler>`)
-- the fast→slow handoff state machine
+- the fast→slow handoff state machine. Slow reply is dispatched
+  **sentence by sentence** — a `slowSpokenLen` byte offset tracks how
+  much of `slowReplyText` has been handed to TTS; the next sentence is
+  sliced and queued once the current one finishes. Unpunctuated tails
+  are flushed when the generator reports done.
 - barge-in latency measurement
 
 Does NOT own subsystem lifecycles — caller starts and stops audio /

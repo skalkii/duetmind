@@ -5,7 +5,7 @@
 > conversation. **Runs entirely in your browser.** No accounts, no API
 > keys, no servers.
 
-[![tests](https://img.shields.io/badge/tests-135%20passing-success)](#)
+[![tests](https://img.shields.io/badge/tests-143%20passing-success)](#)
 [![bundle](https://img.shields.io/badge/main%20bundle-71kB%20gz-blue)](#)
 [![offline](https://img.shields.io/badge/works%20offline-after%20first%20load-violet)](#)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](#)
@@ -126,11 +126,11 @@ To stop it: press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal.
 
 ## What to try once it's running
 
-| Test                                   | What you should hear                                            |
+| Test                                   | What you should hear                                                                          |
 | -------------------------------------- | --------------------------------------------------------------- |
-| Speak continuously for 5+ seconds      | A casual "mmhm" / "right" / "uh-huh" while you're still talking |
-| Ask "what time is it?" then stop       | A quick stall ("Let me think about that…") then a full answer   |
-| Interrupt the AI mid-reply             | Audio cuts off within a fraction of a second                    |
+| Speak continuously for ~1.5+ seconds   | A casual "okay" / "right" / "yeah" / "got it" while you're still talking |
+| Ask "what time is it?" then stop       | A quick stall ("Let me see." / "Good question.") then a full answer |
+| Interrupt the AI mid-reply             | Audio cuts off within a fraction of a second (sustain ≥ 250 ms — filters speaker bleed) |
 | End session, refresh, start again      | `slow • ready` lights up immediately — no re-download           |
 | DevTools → Network → Offline → refresh | Everything still works                                          |
 
@@ -157,7 +157,7 @@ replying, how often it backchannels) on the fly.
 | ----------------------- | ------------------------------- |
 | `npm run dev`           | Vite dev server with hot reload |
 | `npm run build`         | Production bundle               |
-| `npm test`              | Run all 135 tests               |
+| `npm test`              | Run all 143 tests               |
 | `npm run test:watch`    | Tests in watch mode             |
 | `npm run test:coverage` | v8 coverage report              |
 | `npm run typecheck`     | TypeScript project references   |
@@ -170,13 +170,13 @@ The fast brain is [`src/lib/decisionRules.ts`](./src/lib/decisionRules.ts)
 — a single pure function evaluated every 200ms. Rules are checked
 top-down; earlier ones dominate.
 
-| #   | When                                                                                                                             | Action                                                |
-| --- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| 1   | user is speaking AND we're speaking                                                                                              | **interrupt_self** (barge-in)                         |
-| 2   | user has been speaking > 3s AND last backchannel > 2s ago AND random < 0.3                                                       | **backchannel** ("mmhm", "right", …)                  |
-| 3   | user paused AND has a final transcript AND no reply yet AND (silence > 700ms OR (silence > 300ms AND turn-end confidence ≥ 0.7)) | **start_fast_reply** + parallel slow-brain dispatch   |
-| 4   | self speaking the fast stall AND slow reply is ready AND reply in flight                                                         | **handoff_to_slow** (queued at TTS sentence boundary) |
-| 5   | otherwise                                                                                                                        | **silent**                                            |
+| #   | When                                                                                                                             | Action                                                       |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | user has sustained speech ≥ 250 ms AND we're speaking                                                                            | **interrupt_self** (barge-in — speaker-bleed filtered)       |
+| 2   | user has been speaking > 1.5s AND last backchannel > 1.5s ago AND random < 0.5                                                   | **backchannel** ("right", "okay", "got it", …)               |
+| 3   | user paused AND has a final transcript AND no reply yet AND (silence > 700ms OR (silence > 300ms AND turn-end confidence ≥ 0.7)) | **start_fast_reply** + parallel slow-brain dispatch          |
+| 4   | self speaking the fast stall AND slow reply is ready AND reply in flight                                                         | **handoff_to_slow** (sentence-by-sentence dispatch)          |
+| 5   | otherwise                                                                                                                        | **silent**                                                   |
 
 The turn-end confidence is computed by
 [`src/lib/turnEndPredictor.ts`](./src/lib/turnEndPredictor.ts) — a
@@ -186,13 +186,17 @@ opener + question mark, sentence length.
 
 ### Browser support
 
-| Browser     | STT     | TTS | WebGPU  | Status                   |
-| ----------- | ------- | --- | ------- | ------------------------ |
-| Chrome 122+ | ✓       | ✓   | ✓       | first-class              |
-| Edge 122+   | ✓       | ✓   | ✓       | first-class              |
-| Firefox     | —       | ✓   | ✓       | UI loads, no voice input |
-| Safari      | partial | ✓   | partial | not supported            |
-| iOS Safari  | —       | ✓   | —       | unsupported by design    |
+| Browser           | STT | TTS | WebGPU  | Status                                                |
+| ----------------- | --- | --- | ------- | ----------------------------------------------------- |
+| Chrome 122+       | ✓   | ✓   | ✓       | first-class                                           |
+| Edge 122+         | ✓   | ✓   | ✓       | first-class                                           |
+| Brave (Chromium)  | ✗   | ✓   | ✓       | STT backend blocked — friendly error surfaces in UI   |
+| Firefox           | ✗   | ✓   | ✓       | UI loads, no voice input                              |
+| Safari / iOS      | ✗   | ✓   | partial | unsupported                                           |
+
+STT uses the Web Speech API which Chrome routes through Google's
+speech backend. Brave disables that backend by default for privacy;
+Firefox + Safari never shipped it. **Use vanilla Chrome or Edge.**
 
 The slow brain falls back to **WASM** automatically when WebGPU isn't
 available — slower first-token latency but the conversation still

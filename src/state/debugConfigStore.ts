@@ -36,12 +36,12 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     approxDownloadMb: 1100,
   },
   {
-    id: 'Qwen/Qwen2.5-0.5B-Instruct',
+    id: 'onnx-community/Qwen2.5-0.5B-Instruct',
     label: 'Qwen2.5 · 0.5B',
     approxDownloadMb: 360,
   },
   {
-    id: 'Qwen/Qwen2.5-1.5B-Instruct',
+    id: 'onnx-community/Qwen2.5-1.5B-Instruct',
     label: 'Qwen2.5 · 1.5B',
     approxDownloadMb: 1100,
   },

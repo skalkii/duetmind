@@ -4,11 +4,12 @@ Spec defines six acceptance criteria for "done enough." Each is checked
 against (a) what the test suite covers automatically and (b) what a human
 has to verify with mic + speakers in front of them.
 
-The automated `npm test` suite has **129 passing tests**. Type-check, lint,
-production build, Prettier format all pass clean. The bullets below cover
-the parts that need a real browser + real audio.
+The automated `npm test` suite has **143 passing tests**. Type-check, lint,
+production build all pass clean. The bullets below cover the parts that
+need a real browser + real audio.
 
-Browser: **Chrome or Edge** (Web Speech API is the limiter). WebGPU
+Browser: **Chrome or Edge** (Web Speech API is the limiter, and Chromium
+forks like Brave disable Google's STT backend by default). WebGPU
 preferred; WASM fallback works on machines without it.
 
 ---
@@ -39,17 +40,18 @@ no double-speak.
 **Automated coverage:**
 
 - Rule 2 (backchannel) is the only rule that fires while `userSpeaking=true`.
-- `src/lib/__tests__/decisionRules.test.ts` proves: requires `msSinceUserStartedSpeaking > 3000`, cooldown `> 2000ms`, random gate, barge-in rule dominates.
-- Default rate `0.3` per tick at 200ms cadence → expected ~1.5 backchannels per 10s of sustained speech once past the 3s warm-up.
+- `src/lib/__tests__/decisionRules.test.ts` proves: requires `msSinceUserStartedSpeaking > 1500`, cooldown `> 1500ms`, random gate, barge-in rule dominates.
+- Default rate `0.5` per tick at 200ms cadence → expected ~2.5 backchannels per 10s of sustained speech once past the 1.5s warm-up.
+- VAD hysteresis (350 ms hangover on falling edge) keeps `userSpeaking` true across inter-word gaps so the sustained-speech gate accumulates correctly.
 
 **Manual recipe:**
 
 1. Start session.
-2. Speak continuously for ≥ 5 seconds.
-3. Listen for "mmhm" / "right" / "uh-huh" / "yeah" interjections.
+2. Speak continuously for ≥ 3 seconds.
+3. Listen for "right" / "yeah" / "okay" / "got it" / "I see" interjections (10 dictionary-word phrases — "mmhm"/"uh-huh" were dropped because Chrome's TTS spelled them out letter-by-letter).
 
-**Pass criteria:** Backchannel fires ≥ once during 5s of speech.
-Doesn't fire in the first 3s. Doesn't fire while you're silent.
+**Pass criteria:** Backchannel fires ≥ once during 3s of speech.
+Doesn't fire in the first 1.5s. Doesn't fire while you're silent.
 Volume + tone are unobtrusive (browser default voice).
 
 **Tuning:** Debug panel → "backchannel rate" slider. Set to 0 to silence
@@ -77,14 +79,20 @@ them entirely; 1.0 fires every eligible tick. Defaults match
 3. While the reply is mid-sentence, start speaking over it.
 4. Watch the `barge · Nms` badge appear.
 
-**Pass criteria:** Badge value < 200 (amber chip). On Apple Silicon /
-Chrome, typically 50–150ms. Audio cuts within perceptual instant.
+**Pass criteria:** Badge value < 450 (250 ms `minBargeSpeechMs`
+guard + 200 ms tick budget). On Apple Silicon / Chrome, typically
+300–400 ms after the guard. Audio cuts within perceptual instant.
 
-**Failure mode:** If badge is coral (≥ 200ms), the audio meter's 50ms
-sample interval + 200ms tick interval is the floor. Reduce
-`DEFAULT_SAMPLE_INTERVAL_MS` in `src/lib/audio.ts` or
-`TICK_INTERVAL_MS` in `src/lib/tickOrchestrator.ts` for snappier
-response — at the cost of more CPU.
+The 250 ms `minBargeSpeechMs` guard is intentional — without it,
+residual speaker echo (post echo-cancellation) trips false barge-ins
+mid-reply. Combined with the 3× RMS threshold while `selfSpeaking`,
+this filters speaker bleed without sacrificing real interruptions.
+
+**Failure mode:** If badge is coral (≥ 450 ms), the audio meter's 50 ms
+sample interval + 200 ms tick interval + 250 ms sustain guard is the
+floor. Reduce `minBargeSpeechMs` (debug panel knob TBD) or lower
+`TICK_INTERVAL_MS` for snappier response — at the cost of more false
+positives from speaker bleed.
 
 ---
 
@@ -92,9 +100,9 @@ response — at the cost of more CPU.
 
 **Automated coverage:**
 
-- 6 cases in `tickOrchestrator.slow.test.ts > orchestrator handoff state machine` verify the state machine: handoff at TTS end, streaming mid-stall, late boundary post-stall-end, assistant commit, no double handoff.
-- `isSentenceBoundary` regex (`.!?`) drives the trigger.
-- `lastSpokenSlow` + `slowHandedOff` guards prevent double-speak.
+- 8 cases in `tickOrchestrator.slow.test.ts > orchestrator handoff state machine` verify the state machine: handoff at TTS end, streaming mid-stall, late boundary post-stall-end, assistant commit, no double handoff, **sentence-by-sentence dispatch** (no truncation), and tail-flush when generator finishes without terminal punctuation.
+- `isSentenceBoundary` regex (`.!?`) marks `slowReplyReady`; `dispatchNextSentence()` slices the next sentence from `slowReplyText` per TTS end.
+- `slowSpokenLen` byte offset tracks how much has been spoken so subsequent sentences aren't dropped or replayed.
 
 **Manual recipe (5 trials):**
 
@@ -208,5 +216,5 @@ test seam are in place.
 | 5. Offline after load   | n/a                           | DevTools offline + reload | needs human |
 | 6. Non-tech friend test | n/a                           | 2-minute demo             | needs human |
 
-**Gates green at `330a002`:** 129/129 tests · `tsc -b` · `eslint .` ·
+**Gates green at `a779b5b`:** 143/143 tests · `tsc -b` · `eslint .` ·
 `vite build` · `prettier --check .`.
